@@ -71,7 +71,28 @@
         <button id="closeBtn" class="action-btn" title="Back to dashboard">Close</button>
       </div>
     </header>
-
+<!-- PDF Preview Demo (Directly in Left Panel) -->
+<div style="margin:24px 0;">
+  <div style="font-weight:700; margin-bottom:8px;">PDF Preview</div>
+  <div style="margin-bottom:8px;">
+    <button onclick="zoomPdf(-1)" style="padding:6px 12px; border-radius:8px; border:1px solid #e6eef6; background:#fff; cursor:pointer;">Zoom −</button>
+    <button onclick="zoomPdf(1)" style="padding:6px 12px; border-radius:8px; border:1px solid #e6eef6; background:#fff; cursor:pointer;">Zoom +</button>
+    <button onclick="downloadPdf()" style="padding:6px 12px; border-radius:8px; border:1px solid #e6eef6; background:#fff; cursor:pointer;">Download</button>
+  </div>
+  <iframe id="pdfFrame" src="uploads/Screenshot 2025-10-12 215949.pdf" style="width:100%; height:300px; border:1px solid #e6eef6; border-radius:8px;"></iframe>
+</div>
+<script>
+  let pdfZoom = 300;
+  function zoomPdf(delta) {
+    pdfZoom += delta*50;
+    if (pdfZoom < 100) pdfZoom = 100;
+    if (pdfZoom > 800) pdfZoom = 800;
+    document.getElementById('pdfFrame').style.height = pdfZoom + 'px';
+  }
+  function downloadPdf() {
+    window.open('uploads/Screenshot 2025-10-12 215949.pdf', '_blank');
+  }
+</script>
     <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; height:calc(100% - 64px)">
       <div id="docViewer" class="sample-invoice" aria-label="Sample invoice">
         <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Invoice</div>
@@ -579,4 +600,5 @@
 </script>
 </body>
 </html>
+
 ```
