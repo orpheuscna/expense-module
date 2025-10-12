@@ -39,7 +39,12 @@
   .detail-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
   .btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
   .btn-primary{background:var(--blue);color:#fff}
-  .btn-outline{background:#fff;border:1px solid #e6eef6;color:var(--navy)}
+  .btn-outline{
+    background:#fff;
+    border:1px solid #e6eef6;
+    color:var(--navy);
+    text-decoration: none;
+}
   .field{display:flex;flex-direction:column;margin-bottom:8px}
   .input,.select,textarea{padding:8px;border-radius:8px;border:1px solid #e6eef6;background:#fbfdff;font-family:inherit}
   .attachments{height:360px;background:#f8fafc;border-radius:8px;border:1px dashed #e6eef6;display:flex;align-items:center;justify-content:center;color:var(--muted)}
@@ -802,7 +807,7 @@ document.addEventListener('click', function(e) {
     } else if (statusText.includes('changes requested')) {
       targetPage = 'Assistant_View_Changed_Invoice.html?id=' + invId;
     } else {
-      alert('Status not recognized: ' + statusText);
+          // Do nothing if status is not recognized
       return;
     }
     window.location.href = targetPage;
@@ -814,6 +819,7 @@ document.addEventListener('click', function(e) {
 </html>
 
 ```
+
 
 
 
