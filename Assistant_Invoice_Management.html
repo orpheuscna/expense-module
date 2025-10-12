@@ -383,7 +383,25 @@ function renderInbox(){
     tdStatus.appendChild(span); tr.appendChild(tdStatus);
 
     const tdActions = document.createElement('td'); tdActions.className = 'compact actions';
-    const btnOpen = document.createElement('button'); btnOpen.className='btn btn-outline open'; btnOpen.type='button'; btnOpen.dataset.id=inv.id; btnOpen.textContent='Open'; tdActions.appendChild(btnOpen);
+    let linkUrl = '';
+if (inv.status === 'pending_review' || inv.status === 'pending_approval') {
+    linkUrl = 'Assistant_View_Invoice.html?id=' + inv.id;
+} else if (
+    inv.status === 'approved_electronic' ||
+    inv.status === 'approved_physical' ||
+    inv.status === 'rejected'
+) {
+    linkUrl = 'Assistant_View_Approved_Invoice.html?id=' + inv.id;
+} else if (inv.status === 'changes_requested') {
+    linkUrl = 'Assistant_View_Changed_Invoice.html?id=' + inv.id;
+} else {
+    linkUrl = '#';
+}
+const aOpen = document.createElement('a');
+aOpen.className = 'btn btn-outline open';
+aOpen.href = linkUrl;
+aOpen.textContent = 'Open';
+tdActions.appendChild(aOpen);
 
     if(inv.status === 'pending_review'){
       const btnSubmit = document.createElement('button'); btnSubmit.className='btn btn-outline submit'; btnSubmit.type='button'; btnSubmit.dataset.id=inv.id; btnSubmit.textContent='Submit'; tdActions.appendChild(btnSubmit);
@@ -796,5 +814,6 @@ document.addEventListener('click', function(e) {
 </html>
 
 ```
+
 
 
