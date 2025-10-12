@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Assistant — Invoice View</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0b5cff; --navy:#08306b; --muted:#6b7280; --bg:#f5f7fb;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+  .panel {width:100vw; height:100vh; max-width:1600px; margin:0 auto; background:#fff; display:grid; grid-template-columns:40% 60%; overflow:hidden; box-shadow:0 24px 60px rgba(2,6,23,0.08)}
+  .panel .viewer{background:#f8fafc; display:flex; flex-direction:column}
+  .panel header{padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center}
+  .small{font-size:13px;color:var(--muted)}
+  .fld {margin-bottom:8px}
+  .fld label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .fld input, .fld select, .fld textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef6;font-size:14px}
+  .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
+  .upload-neutral{background:transparent;color:var(--navy);padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;border:0}
+  table.line-items{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+  table.line-items th, table.line-items td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
+  table.line-items th{background:#fbfdff;font-weight:700;color:var(--muted)}
+  .support-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .support-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px dashed #eef4ff;border-radius:8px;background:#fff}
+  .support-item .meta { display:flex; flex-direction:column; gap:4px; }
+  .support-item .meta > .filename { font-size:13px; font-weight:700; } 
+  .support-item .meta > .filename.contract { font-size:12px; font-weight:700; color:#0f172a; } 
+  .support-item .tag { font-size:12px; color:var(--muted); }
+  .totals-block{display:flex;justify-content:flex-end;margin-top:12px;align-items:flex-end}
+  .totals-inner{width:320px}
+  .small-muted{color:var(--muted);font-size:13px}
+  .btn { padding:8px 12px; border-radius:8px; border: none; cursor:pointer; font-size:14px; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-secondary { background:#e2e8f0; }
+  .link-docs { display:flex; gap:8px; align-items:center; margin-top:6px; }
+  .link-docs select { flex:1; padding:10px; border-radius:8px; border:1px solid #e6eef6; font-size:14px; }
+
+  /* modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:800}
+  .modal{width:720px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3);max-height:84vh;overflow:auto}
+  .modal h3{margin:0 0 8px 0}
+  .doc-viewer { border:1px solid #e6eef6; border-radius:8px; background:#fff; padding:12px; max-height:64vh; overflow:auto; }
+  .doc-actions { display:flex; gap:8px; margin-top:10px; justify-content:flex-end; }
+
+  /* document preview styles */
+  .pr,.po,.contract{font-size:14px;line-height:1.45;color:#0f172a}
+  .pr .header,.po .header,.contract .c-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .pr .box{border:1px solid #eef4ff;padding:10px;border-radius:8px;background:#fbfdff}
+  .po .box{border:1px solid #eef4ff;padding:10px;border-radius:8px;background:#fffaf6}
+  .contract .box{border:1px solid #eef4ff;padding:10px;border-radius:8px;background:#fff}
+  .signature-area{margin-top:16px;border-top:1px dashed #e6eef6;padding-top:10px;display:flex;justify-content:space-between;align-items:center}
+
+  @media(max-width:1000px){ .panel{grid-template-columns:1fr} .panel .viewer{height:36vh} .modal{width:92%} }
+</style>
+</head>
+<body>
+
+<div class="panel" role="main" aria-labelledby="panelTitle">
+  <!-- Left: Viewer -->
+  <div class="viewer" role="region" aria-label="Invoice preview">
+    <header>
+      <div>
+        <strong id="panelTitle">INV-xxxx</strong>
+        <div class="small" id="panelStatus" style="margin-top:4px">Needs Assistant action</div>
+      </div>
+      <div>
+        <button id="closeBtn" class="action-btn" title="Back to dashboard">Close</button>
+      </div>
+    </header>
+
+    <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; height:calc(100% - 64px)">
+      <div id="docViewer" class="sample-invoice" aria-label="Sample invoice">
+        <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Invoice</div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <div><strong>Invoice</strong> <span id="viewInvId">INV-xxxx</span></div>
+          <div><strong>Date</strong> <span id="viewDate">YYYY-MM-DD</span></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <div><strong>Bill To</strong><br/><span id="viewBillTo">Company</span></div>
+          <div><strong>Due</strong> <span id="viewDue">YYYY-MM-DD</span></div>
+        </div>
+
+        <div style="margin-top:12px;font-weight:700">Items</div>
+
+        <table style="width:100%;border-collapse:collapse;margin-top:8px">
+          <thead>
+            <tr style="background:#fbfdff">
+              <th style="text-align:left;padding:8px">Description</th>
+              <th style="padding:8px;width:80px">Qty</th>
+              <th style="padding:8px;width:120px">Unit</th>
+              <th style="padding:8px;width:120px">Tax</th>
+              <th style="padding:8px;width:140px">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="viewTableBody"></tbody>
+        </table>
+
+        <div class="totals-block" style="margin-top:12px">
+          <div class="totals-inner" id="viewTotals">
+            <div style="display:flex;justify-content:space-between"><div class="small-muted">Subtotal</div><div style="font-weight:800" id="viewSubtotal">$0.00</div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px"><div class="small-muted">Total Tax</div><div style="font-weight:800" id="viewTotalTax">$0.00</div></div>
+            <div style="border-top:1px solid #eef4ff;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:900">Grand Total</div><div style="font-weight:900" id="viewGrandTotal">$0.00</div></div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;font-size:13px;color:var(--muted)" id="viewAttached">Attached: </div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="action-btn viewer-btn" data-zoom="-1">Zoom −</button>
+        <button class="action-btn viewer-btn" data-zoom="1">Zoom +</button>
+        <button class="action-btn" id="downloadDoc">Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Details -->
+  <div style="padding:0;display:flex;flex-direction:column;overflow:auto" role="region" aria-label="Invoice details">
+    <div style="padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;flex-direction:column">
+        <div style="font-weight:800" id="detailInvId">INV-xxxx</div>
+        <div class="small" id="detailSubtitle">Uploaded: YYYY-MM-DD • Vendor</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="saveDraft" class="action-btn">Save draft</button>
+        <button id="submitToDirector" class="btn btn-primary">Submit to Director</button>
+      </div>
+    </div>
+
+    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+      <div class="fld">
+        <label for="vendorFld">Vendor</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="vendorFld" value="" />
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <div style="flex:1" class="fld">
+          <label for="dateFld">Invoice Date</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="dateFld" type="date" />
+          </div>
+        </div>
+
+        <div style="width:180px" class="fld">
+          <label for="totalFld">Total</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="totalFld" />
+          </div>
+        </div>
+      </div>
+
+      <div class="fld">
+        <label for="categoryFld">Category</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="categoryFld">
+            <option>Office Supplies</option><option>Travel</option><option>Rent</option><option>Entertainment</option><option>Tools</option><option>Laptops</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-weight:700;margin-bottom:6px">Line items</div>
+        <table class="line-items" id="lineItemsTable" aria-label="Line items table">
+          <thead>
+            <tr><th style="width:40%">Description</th><th style="width:12%">Quantity</th><th style="width:16%">Unit Price</th><th style="width:16%">Tax</th><th style="width:16%">Amount after Tax</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+          <div class="small">Totals recalc automatically when quantity or unit price changes</div>
+          <div style="display:flex;gap:8px">
+            <button id="addLine" class="action-btn">Add line</button>
+            <button id="autoCalc" class="upload-neutral">Recalculate</button>
+          </div>
+        </div>
+
+        <div class="totals-block" id="totalsBlock">
+          <div class="totals-inner">
+            <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Subtotal</div><div id="subtotalDisplay" style="font-weight:800">$0.00</div></div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Total Tax</div><div id="totalTaxDisplay" style="font-weight:800">$0.00</div></div>
+            <div style="border-top:1px solid #eef4ff;margin-top:6px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:800">Grand Total</div><div id="grandTotalDisplay" style="font-weight:900">$0.00</div></div>
+            <div id="totalMismatch" style="color:#b45309;font-size:13px;margin-top:6px;display:none">Calculated total does not match invoice total. Please verify.</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700;margin-bottom:6px">Supporting documents</div>
+          <div class="small" style="font-size:13px">Select type or link system document</div>
+        </div>
+
+        <div class="link-docs" style="margin-top:6px">
+          <select id="paymentTypeSelect">
+            <option value="">Select type</option>
+            <option value="Payment Request">Payment Request</option>
+            <option value="Payment Order">Payment Order</option>
+            <option value="Other documents">Other documents</option>
+          </select>
+
+          <input id="paymentUploadSelect" type="file" multiple />
+
+          <button id="attachTypeBtn" class="action-btn">Attach</button>
+        </div>
+
+        <div class="link-docs" style="margin-top:8px">
+          <select id="linkedDocSelect">
+            <option value="">Select existing system document to link</option>
+            <option value="Contract_2025_01.pdf|Other documents">Contract_2025_01.pdf</option>
+            <option value="PO_2025_234.pdf|Other documents">PO_2025_234.pdf</option>
+            <option value="Approval_Email_2025_09_15.pdf|Other documents">Approval_Email_2025_09_15.pdf</option>
+            <option value="PaymentRequest_TEMPLATE.pdf|Payment Request">PaymentRequest_TEMPLATE.pdf</option>
+            <option value="PaymentOrder_TEMPLATE.pdf|Payment Order">PaymentOrder_TEMPLATE.pdf</option>
+          </select>
+          <button id="linkDocBtn" class="action-btn">Link</button>
+        </div>
+
+        <div style="margin-top:8px">
+          <div class="small-muted">Use the selector to upload or link documents already in the system (no re-upload needed).</div>
+        </div>
+
+        <div class="support-list" id="supportList" aria-live="polite" style="margin-top:8px"></div>
+      </div>
+
+      <div class="fld">
+        <label for="notesFld">Notes</label>
+        <textarea id="notesFld" rows="3"></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+        <button id="closePanelFooter" class="action-btn">Close</button>
+        <button id="submitPanel" class="btn btn-primary">Submit to Director</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal for previewing support files (Assistant) -->
+<div id="modalPreview" class="modal-backdrop" role="dialog" aria-hidden="true">
+  <div class="modal" role="document" aria-labelledby="previewTitle">
+    <h3 id="previewTitle">Document preview</h3>
+    <div class="doc-viewer" id="previewContent" tabindex="0">
+      Loading...
+    </div>
+
+    <div style="margin-top:12px">
+      <div id="previewMeta" class="small-muted"></div>
+    </div>
+
+    <div class="doc-actions" style="margin-top:12px">
+      <button id="previewDownload" class="action-btn">Download</button>
+      <button id="previewRemove" class="action-btn">Remove</button>
+      <button id="previewClose" class="action-btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const INVOICE_DB = {
+    'INV-2025-001': {
+      id: 'INV-2025-001',
+      vendor: 'ACME Supplies Co.',
+      date: '2025-10-25',
+      due: '2025-11-24',
+      billTo: 'HR Department\nCompany XYZ\n123 Nguyen Van Linh',
+      total: '$330.00',
+      subtitle: 'Uploaded: 2025-10-26 • Vendor: ACME Supplies Co.',
+      lines: [
+        { desc:'Printer paper A4', qty:10, unit:7.50, tax:0.00 },
+        { desc:'Toner cartridge', qty:3, unit:75.00, tax:0.00 }
+      ],
+      attached: [
+        { name: 'Contract_2025_01.pdf', type: 'Other documents' },
+        { name: 'PaymentRequest_INV-2025-001.pdf', type: 'Payment Request' },
+        { name: 'PaymentOrder_INV-2025-001.pdf', type: 'Payment Order' }
+      ],
+      notes: 'Missing delivery slip'
+    }
+  };
+
+  const SUPPORT_REGISTRY = {}; // id -> {name,type,size,contentHtml}
+
+  function getQueryParam(name){ return (new URLSearchParams(window.location.search)).get(name); }
+  function escapeHtml(s){ return String(s).replace(/[&<>"'`=\/]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[ch]); }
+  function parseMoney(v){ if(typeof v!=='string') v = String(v||''); v = v.replace(/[^\d.\-]/g,''); const n=parseFloat(v); return Number.isFinite(n)?n:0; }
+  function fmtMoney(n){ return '$'+Number(n||0).toFixed(2); }
+
+  function sampleContentFor(name, type){
+    if(type==='Payment Request' || name.toLowerCase().includes('paymentrequest')){
+      return `
+        <div class="pr">
+          <div class="header">
+            <div><div style="font-weight:900;font-size:16px">Payment Request</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div></div>
+            <div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Date: 2025-10-26</div></div>
+          </div>
+          <div class="box"><div><strong>To:</strong> Finance Department</div><div style="margin-top:6px"><strong>Invoice ref:</strong> INV-2025-001</div><div style="margin-top:6px"><strong>Amount requested:</strong> <span style="font-weight:800">$330.00</span></div></div>
+          <div class="signature-area"><div><div style="font-size:13px;color:var(--muted)">Assistant note</div><div style="margin-top:6px;color:var(--muted)">Prepared for approval</div></div><div><div style="font-size:13px;color:var(--muted)">Director action</div><div style="margin-top:6px;color:var(--muted)">Sign electronically or mark physical</div></div></div>
+        </div>`;
+    }
+    if(type==='Payment Order' || name.toLowerCase().includes('paymentorder')){
+      return `
+        <div class="po">
+          <div class="header">
+            <div><div style="font-weight:900;font-size:16px">Payment Order</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div><div class="small-muted" style="margin-top:6px">Send to: TRG Head Office</div></div>
+            <div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Date: 2025-10-26</div></div>
+          </div>
+          <div class="box"><div><strong>Order reference:</strong> INV-2025-001</div><div style="margin-top:6px"><strong>Amount:</strong> <span style="font-weight:800">$330.00</span></div><div style="margin-top:8px;color:#92400e">Note: For TRG to process payment.</div></div>
+          <div class="signature-area"><div><div style="font-size:13px;color:var(--muted)">Assistant note</div><div style="margin-top:6px;color:var(--muted)">Prepared for TRG</div></div><div><div style="font-size:13px;color:var(--muted)">Director authorization</div><div style="margin-top:6px;color:var(--muted)">Sign electronically or mark physical</div></div></div>
+        </div>`;
+    }
+    if(type==='Other documents' || name.toLowerCase().includes('contract')){
+      return `
+        <div class="contract">
+          <div class="c-header">
+            <div><div style="font-weight:900;font-size:16px">Service Contract</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div></div>
+            <div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Effective date: 2025-09-01</div></div>
+          </div>
+          <div><strong>Parties</strong></div>
+          <div class="clause">This Contract is between ACME Supplies Co. ("Supplier") and Company XYZ ("Client") for the supply of goods.</div>
+          <div style="margin-top:10px"><strong>Payment</strong></div>
+          <div class="clause">Payments due within 30 days of invoice.</div>
+        </div>`;
+    }
+    return `<div><strong>${escapeHtml(name)}</strong><div style="margin-top:8px;color:var(--muted)">Preview not available</div></div>`;
+  }
+
+  function registerSupport(id, info){ SUPPORT_REGISTRY[id] = info; }
+  function appendSupportItem(container, id, info){
+    const item = document.createElement('div');
+    item.className = 'support-item';
+    item.dataset.fileid = id;
+    item.dataset.filetype = info.type || '';
+    const fnameClass = info.name && info.name.startsWith('Contract') ? 'filename contract' : 'filename';
+    item.innerHTML =
+      `<div class="meta"><div class="${fnameClass}">${escapeHtml(info.name)}</div><div class="tag small">${escapeHtml(info.type||'Document')} • ${Math.round((info.size||0)/1024)} KB</div></div>
+       <div style="display:flex;gap:8px">
+         <button class="action-btn view-support" data-fileid="${id}">View</button>
+         <button class="action-btn download-support" data-fileid="${id}">Download</button>
+         <button class="action-btn remove-support" data-fileid="${id}">Remove</button>
+       </div>`;
+    container.appendChild(item);
+  }
+
+  function loadInvoiceById(invId){ return INVOICE_DB[invId] || INVOICE_DB['INV-2025-001']; }
+
+  function populatePage(data){
+    document.getElementById('panelTitle').textContent = data.id;
+    document.getElementById('detailInvId').textContent = data.id;
+    document.getElementById('detailSubtitle').textContent = data.subtitle;
+    document.getElementById('vendorFld').value = data.vendor;
+    document.getElementById('dateFld').value = data.date;
+    document.getElementById('totalFld').value = data.total;
+    document.getElementById('viewInvId').textContent = data.id;
+    document.getElementById('viewDate').textContent = data.date;
+    document.getElementById('viewDue').textContent = data.due || '—';
+    document.getElementById('viewVendor').textContent = data.vendor + ' — Invoice';
+    document.getElementById('viewBillTo').innerText = data.billTo || '';
+    document.getElementById('notesFld').value = data.notes || '';
+
+    const vtb = document.getElementById('viewTableBody'); vtb.innerHTML = '';
+    data.lines.forEach(l=>{
+      const amt = (l.qty * l.unit) + (l.tax || 0);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="padding:8px">${escapeHtml(l.desc)}</td><td style="padding:8px">${l.qty}</td><td style="padding:8px">$${l.unit.toFixed(2)}</td><td style="padding:8px">$${(l.tax||0).toFixed(2)}</td><td style="padding:8px">$${amt.toFixed(2)}</td>`;
+      vtb.appendChild(tr);
+    });
+
+    const tbody = document.querySelector('#lineItemsTable tbody'); tbody.innerHTML = '';
+    data.lines.forEach(l=>{
+      const amt = (l.qty * l.unit) + (l.tax || 0);
+      const tr = document.createElement('tr'); tr.dataset.line='x';
+      tr.innerHTML = `<td><input value="${escapeHtml(l.desc)}"></td><td><input value="${l.qty}"></td><td><input value="$${l.unit.toFixed(2)}"></td><td><input value="$${(l.tax||0).toFixed(2)}"></td><td><input value="$${amt.toFixed(2)}"></td>`;
+      tbody.appendChild(tr);
+    });
+
+    // clear and register initial attachments
+    const supportList = document.getElementById('supportList'); supportList.innerHTML = '';
+    Object.keys(SUPPORT_REGISTRY).forEach(k=>delete SUPPORT_REGISTRY[k]);
+    (data.attached || []).forEach((f, idx)=>{
+      const id = 'init-' + idx;
+      const info = { name: f.name, type: f.type, size: 2048, contentHtml: sampleContentFor(f.name, f.type) };
+      registerSupport(id, info);
+      appendSupportItem(supportList, id, info);
+    });
+
+    updateViewAttached(); computeTotals();
+  }
+
+  function computeTotals(){
+    const rows = document.querySelectorAll('#lineItemsTable tbody tr');
+    let subtotal=0,totalTax=0,grand=0;
+    rows.forEach(r=>{
+      const q=parseMoney(r.cells[1].querySelector('input').value);
+      const up=parseMoney(r.cells[2].querySelector('input').value);
+      const tax=parseMoney(r.cells[3].querySelector('input').value);
+      const lineBeforeTax = q * up;
+      const lineAfterTax = lineBeforeTax + tax;
+      subtotal += lineBeforeTax; totalTax += tax; grand += lineAfterTax;
+    });
+    document.getElementById('subtotalDisplay').textContent = fmtMoney(subtotal);
+    document.getElementById('totalTaxDisplay').textContent = fmtMoney(totalTax);
+    document.getElementById('grandTotalDisplay').textContent = fmtMoney(grand);
+    document.getElementById('viewSubtotal').textContent = fmtMoney(subtotal);
+    document.getElementById('viewTotalTax').textContent = fmtMoney(totalTax);
+    document.getElementById('viewGrandTotal').textContent = fmtMoney(grand);
+    return { subtotal, totalTax, grand };
+  }
+
+  // attach files by selected type (upload)
+  document.getElementById('attachTypeBtn').addEventListener('click', ()=>{
+    const typeSel = document.getElementById('paymentTypeSelect');
+    const filesInput = document.getElementById('paymentUploadSelect');
+    const chosenType = typeSel.value;
+    if(!chosenType){ alert('Please select a type first.'); return; }
+    if(!filesInput.files || filesInput.files.length === 0){ alert('Please choose files to upload.'); return; }
+    const list = document.getElementById('supportList');
+    Array.from(filesInput.files).forEach((f,i)=>{
+      let name = f.name;
+      if(chosenType !== 'Other documents' && !name.toLowerCase().endsWith('.pdf')){
+        name = (chosenType === 'Payment Request' ? 'PaymentRequest_' : 'PaymentOrder_') + (getQueryParam('inv')||'INV-2025-001') + '.pdf';
+      }
+      const id = 'up-' + (Date.now() + i);
+      const info = { name, type: chosenType, size: f.size || 2048, contentHtml: sampleContentFor(name, chosenType) };
+      registerSupport(id, info);
+      appendSupportItem(list, id, info);
+    });
+    filesInput.value = ''; typeSel.value = ''; updateViewAttached();
+  });
+
+  // link existing system document (no upload)
+  document.getElementById('linkDocBtn').addEventListener('click', ()=>{
+    const sel = document.getElementById('linkedDocSelect');
+    const val = sel.value;
+    if(!val){ alert('Choose a document to link.'); return; }
+    // value format: "filename|type"
+    const [name, typeRaw] = val.split('|');
+    const type = typeRaw || 'Other documents';
+    const id = 'linked-' + Date.now();
+    const info = { name, type, size: 1024, contentHtml: sampleContentFor(name, type) };
+    registerSupport(id, info);
+    appendSupportItem(document.getElementById('supportList'), id, info);
+    sel.value = ''; updateViewAttached();
+  });
+
+  // support upload for generic other input (if still used) - kept for compatibility but not required
+  document.getElementById('supportUpload')?.addEventListener('change', function(){
+    const input=this; const list=document.getElementById('supportList');
+    if(!input.files || input.files.length===0) return;
+    Array.from(input.files).forEach((f,i)=>{
+      const id='s-' + (Date.now() + i);
+      const info = { name: f.name, type: 'Other documents', size: f.size || 1024, contentHtml: sampleContentFor(f.name, 'Other documents') };
+      registerSupport(id, info);
+      appendSupportItem(list, id, info);
+    });
+    input.value=''; updateViewAttached();
+  });
+
+  // support list actions
+  document.getElementById('supportList').addEventListener('click', function(e){
+    const vw = e.target.closest('.view-support');
+    const dl = e.target.closest('.download-support');
+    const rm = e.target.closest('.remove-support');
+    if(vw){
+      const id = vw.dataset.fileid || vw.closest('.support-item').dataset.fileid;
+      openPreviewModal(id);
+    }
+    if(dl){
+      const id = dl.dataset.fileid || dl.closest('.support-item').dataset.fileid;
+      const info = SUPPORT_REGISTRY[id];
+      alert('Download (demo): ' + (info?info.name:id));
+    }
+    if(rm){
+      const el = rm.closest('.support-item');
+      const id = el.dataset.fileid;
+      if(confirm('Remove this document?')){
+        delete SUPPORT_REGISTRY[id];
+        el.remove();
+        updateViewAttached();
+      }
+    }
+  });
+
+  // preview modal management
+  const modal = document.getElementById('modalPreview');
+  const previewContent = document.getElementById('previewContent');
+  const previewMeta = document.getElementById('previewMeta');
+  let previewCurrentId = null;
+
+  function openPreviewModal(id){
+    const info = SUPPORT_REGISTRY[id];
+    previewCurrentId = id;
+    document.getElementById('previewTitle').textContent = info ? info.name : id;
+    previewContent.innerHTML = info ? info.contentHtml : `<div><strong>${escapeHtml(id)}</strong><div style="margin-top:8px;color:var(--muted)">No preview</div></div>`;
+    previewMeta.textContent = info ? `${info.type} • ${Math.round((info.size||0)/1024)} KB` : '';
+    document.getElementById('previewDownload').dataset.fileid = id;
+    document.getElementById('previewRemove').dataset.fileid = id;
+    openModal(modal);
+  }
+
+  document.getElementById('previewClose').addEventListener('click', ()=> closeModal(modal));
+  document.getElementById('previewDownload').addEventListener('click', function(){
+    const id = this.dataset.fileid || previewCurrentId; const info = SUPPORT_REGISTRY[id];
+    alert('Download (demo): ' + (info?info.name:id));
+  });
+  document.getElementById('previewRemove').addEventListener('click', function(){
+    const id = this.dataset.fileid || previewCurrentId;
+    if(!confirm('Remove this document?')) return;
+    const el = document.querySelector('.support-item[data-fileid="'+id+'"]');
+    if(el) el.remove();
+    delete SUPPORT_REGISTRY[id];
+    updateViewAttached();
+    closeModal(modal);
+  });
+
+  function openModal(m){ m.style.display='flex'; m.setAttribute('aria-hidden','false'); }
+  function closeModal(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); }
+
+  function updateViewAttached(){
+    const list = document.getElementById('supportList');
+    const names = Array.from(list.querySelectorAll('.support-item .meta > .filename')).map(d => d.textContent.trim());
+    document.getElementById('viewAttached').textContent = 'Attached: ' + (names.length ? names.join(', ') : '—');
+  }
+
+  // utility bindings
+  document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='dashboard1.html');
+  document.getElementById('closePanelFooter')?.addEventListener('click', ()=> window.location.href='dashboard1.html');
+  document.getElementById('addLine').addEventListener('click', ()=>{
+    const tbody=document.querySelector('#lineItemsTable tbody');
+    const idx=tbody.querySelectorAll('tr').length+1;
+    const tr=document.createElement('tr'); tr.dataset.line=idx;
+    tr.innerHTML = '<td><input value=""></td><td><input value="1"></td><td><input value="$0.00"></td><td><input value="$0.00"></td><td><input value="$0.00"></td>';
+    tbody.appendChild(tr); computeTotals();
+  });
+
+  document.getElementById('autoCalc').addEventListener('click', ()=> {
+    const rows=document.querySelectorAll('#lineItemsTable tbody tr');
+    rows.forEach(r=>{
+      const q=parseMoney(r.cells[1].querySelector('input').value);
+      const up=parseMoney(r.cells[2].querySelector('input').value);
+      const tax=parseMoney(r.cells[3].querySelector('input').value);
+      const amt=(q*up)+tax;
+      r.cells[4].querySelector('input').value='$'+amt.toFixed(2);
+    });
+    computeTotals(); alert('Line totals recalculated (demo).');
+  });
+
+  document.getElementById('saveDraft').addEventListener('click', ()=> alert('Draft saved (demo).'));
+  document.getElementById('submitToDirector').addEventListener('click', ()=> { alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; });
+  document.getElementById('submitPanel').addEventListener('click', ()=> {
+    const { grand } = computeTotals();
+    const invoiceTotal = parseMoney(document.getElementById('totalFld').value);
+    if(Math.abs(invoiceTotal - grand) > 0.005){ if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return; }
+    alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; window.location.href='dashboard1.html';
+  });
+
+  // init: register initial attachments and populate
+  (function init(){
+    const inv = getQueryParam('inv') || 'INV-2025-001';
+    const data = loadInvoiceById(inv);
+    const list = document.getElementById('supportList'); list.innerHTML = '';
+    data.attached.forEach((f, idx)=>{
+      const id = 'init-' + idx;
+      const info = { name: f.name, type: f.type, size: 2048, contentHtml: sampleContentFor(f.name, f.type) };
+      registerSupport(id, info);
+      appendSupportItem(list, id, info);
+    });
+    populatePage(data);
+  })();
+</script>
+</body>
+</html>
+```

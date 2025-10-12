@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Invoice Management — Completed Filter & Tags</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0b5cff; --navy:#08306b; --muted:#6b7280; --bg:#f5f7fb;
+    --card:#ffffff; --success:#12b76a; --warn:#f59e0b; --danger:#ef4444;
+    --approved-bg:#e6fffa;
+    --pending-approval-bg:#eef6ff;
+    --changes-requested-bg:#fff7ed;
+  }
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+  .wrap{max-width:1200px;margin:28px auto;padding:16px}
+  .card{background:var(--card);border-radius:10px;padding:12px;border:1px solid rgba(2,6,23,0.06);box-shadow:0 6px 20px rgba(12,20,40,0.04)}
+  h2{margin:0 0 12px 0;color:var(--navy)}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .tool-btn{padding:8px 12px;border-radius:8px;border:1px solid #e6eef6;cursor:pointer;background:#fff;color:var(--navy);font-weight:700}
+  .filter{padding:8px;border:1px solid #e6eef6;border-radius:8px;background:#fff}
+  .table{width:100%;border-collapse:collapse}
+  .table th,.table td{padding:10px 8px;text-align:left;border-bottom:1px solid #f1f5f9;font-size:14px;vertical-align:middle}
+  .table th{font-weight:700;color:var(--muted);font-size:12px}
+  .status{padding:6px 8px;border-radius:999px;font-weight:700;font-size:12px;display:inline-block}
+  .s-pending-review{background:#fff7ed;color:#9a5800}
+  .s-pending-approval{background:var(--pending-approval-bg);color:#08306b}
+  .s-approved-electronic{background:var(--approved-bg);color:#047857}
+  .s-approved-physical{background:var(--approved-bg);color:#047857}
+  .s-changes-requested{background:var(--changes-requested-bg);color:#9a5800}
+  .s-rejected{background:#fff1f2;color:var(--danger)}
+  .compact{font-size:13px;color:var(--muted)}
+  .actions button{margin-left:6px;padding:6px 10px;border-radius:8px;border:1px solid #e6eef6;background:#fff;cursor:pointer}
+  th.amount,td.amount{width:140px;text-align:right;padding-right:18px}
+  th.status,td.status{min-width:140px}
+  .detail-panel{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:flex-end;padding:40px;pointer-events:none}
+  .detail-card{width:880px;max-width:calc(100% - 48px);pointer-events:auto;background:#fff;border-radius:12px;padding:18px;border:1px solid rgba(2,6,23,0.06);box-shadow:0 30px 60px rgba(2,6,23,0.18);display:grid;grid-template-columns:1fr 360px;gap:18px}
+  .detail-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-outline{background:#fff;border:1px solid #e6eef6;color:var(--navy)}
+  .field{display:flex;flex-direction:column;margin-bottom:8px}
+  .input,.select,textarea{padding:8px;border-radius:8px;border:1px solid #e6eef6;background:#fbfdff;font-family:inherit}
+  .attachments{height:360px;background:#f8fafc;border-radius:8px;border:1px dashed #e6eef6;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .line-items{border-top:1px solid #f1f5f9;margin-top:12px;padding-top:12px}
+  .li-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #fbfdff}
+  .audit{font-size:13px;color:var(--muted);margin-top:12px}
+  .mark-completed { background: #e6f0ff; color: var(--navy); border: 1px solid #cfe0ff; font-weight:700; }
+  .tag-picker .btn.btn-primary { background: #fff; color: var(--navy); border: 1px solid #e6eef6; }
+  .tag-picker .filter { margin:0; padding:6px 8px; height:36px; }
+  .tag-picker .btn { padding:6px 10px; height:36px; }
+  @media(max-width:980px){ .detail-card{grid-template-columns:1fr} .attachments{height:220px} }
+  /* upload panel styles (kept minimal) */
+  .upload-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.35);display:none;align-items:center;justify-content:center;z-index:300}
+  .upload-panel{width:720px;max-width:calc(100vw - 32px);background:#fff;border-radius:12px;box-shadow:0 24px 60px rgba(2,6,23,0.3);overflow:hidden;padding:16px}
+  .upload-panel .h{font-weight:800}
+  .upload-panel .input-file{display:block;width:100%;padding:12px;border:1px dashed #e6eef6;border-radius:8px;background:#fbfdff;cursor:pointer;text-align:center}
+  .upload-panel .btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+  .upload-panel .btn-primary{background:var(--blue);color:#fff}
+  /* Upload status styles */
+  .upload-neutral{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid #e6eef6;background:#fff;color:var(--navy);font-weight:700;cursor:pointer;text-decoration:none;}
+  .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
+  .progress-bar{transition:width .3s linear}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div><h2>Invoice Management</h2></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="newUpload" class="tool-btn">New Upload</button>
+      <button id="bulkUpload" class="tool-btn">Bulk Upload</button>
+      <button id="scanUpload" class="tool-btn">Scan to Upload</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar" id="toolbarArea">
+      <input id="q" class="filter" placeholder="Search by vendor, invoice #, amount or tag" style="width:260px" />
+      <label class="compact">From</label><input id="dateFrom" type="date" class="filter" />
+      <label class="compact">To</label><input id="dateTo" type="date" class="filter" />
+      <select id="categoryFilter" class="filter">
+        <option value="">All categories</option><option>Office Supplies</option><option>Travel</option><option>Rent</option><option>Entertainment</option><option>Consulting</option><option>Logistics</option><option>Maintenance</option>
+      </select>
+
+      <select id="statusFilter" class="filter">
+        <option value="">All statuses</option>
+        <option value="pending_review">Pending Review</option>
+        <option value="pending_approval">Pending Approval</option>
+        <option value="approved_electronic">Approved (Electronic)</option>
+        <option value="approved_physical">Approved (Physical)</option>
+        <option value="changes_requested">Changes Requested</option>
+        <option value="rejected">Rejected</option>
+      </select>
+
+      <div id="showCompletedWrap" style="display:flex;align-items:center;gap:8px;margin-left:8px">
+        <label class="compact">Show completed</label>
+        <input id="showCompleted" type="checkbox" class="filter" />
+        <!-- when checked, a completion tag dropdown will be injected here -->
+      </div>
+
+      <div style="flex:1"></div>
+    </div>
+
+    <table class="table" id="inboxTable" aria-label="Invoice management">
+      <thead>
+        <tr>
+          <th scope="col" style="width:36px"><input id="selectAll" type="checkbox" /></th>
+          <th scope="col">Vendor</th>
+          <th scope="col">Invoice #</th>
+          <th scope="col">Date</th>
+          <th scope="col" class="amount">Amount</th>
+          <th scope="col" class="status">Status</th>
+          <th scope="col" style="width:220px">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="inboxBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Detail panel (unchanged) -->
+<div id="detailPanel" class="detail-panel" role="dialog" aria-modal="true">
+  <div class="detail-card card" role="document">
+    <div>
+      <div class="detail-header">
+        <button id="backToInbox" class="btn btn-outline">← Back to list</button>
+        <div style="flex:1"></div>
+        <div id="detailId" class="compact" style="color:var(--muted)"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:12px">
+        <div style="flex:1">
+          <div style="display:flex;gap:8px">
+            <div style="flex:1">
+              <div class="field"><label class="compact">Vendor</label><input id="dVendor" class="input" /></div>
+            </div>
+            <div style="width:160px">
+              <div class="field"><label class="compact">Invoice #</label><input id="dNumber" class="input" /></div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px">
+            <div class="field" style="flex:1"><label class="compact">Date</label><input id="dDate" type="date" class="input" /></div>
+            <div class="field" style="width:160px"><label class="compact">Amount</label><input id="dAmount" class="input" /></div>
+          </div>
+
+          <div style="font-weight:700;margin-top:12px">Director action</div>
+          <div id="directorActionCard" style="margin-top:8px;padding:10px;border-radius:8px;border:1px solid #eef4ff;background:#f8fafc"></div>
+
+          <div style="font-weight:700;margin-top:12px">Follow-up tasks</div>
+          <div id="followUpTasks" class="task-list"></div>
+
+          <div style="font-weight:700;margin-top:12px">Attachment</div>
+          <div class="attachments" id="attachmentViewer">Attachment viewer placeholder</div>
+
+          <div class="line-items">
+            <div style="font-weight:700;margin:8px 0">Line items</div>
+            <div id="lineItems"></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:8px;font-weight:700">Total: <span id="lineTotal" style="margin-left:8px">$0.00</span></div>
+          </div>
+
+          <div class="audit">
+            <div style="font-weight:700;margin-top:12px">History</div>
+            <div id="historyList"></div>
+          </div>
+        </div>
+
+        <div style="width:360px">
+          <div style="font-weight:700;margin-bottom:8px">Extracted data</div>
+          <div class="field"><label class="compact">PO</label><input id="dPO" class="input" /></div>
+          <div class="field"><label class="compact">Tax</label><input id="dTax" class="input" /></div>
+          <div class="field"><label class="compact">Category</label><select id="dCategory" class="select"><option>Office Supplies</option><option>Travel</option><option>Rent</option><option>Entertainment</option><option>Consulting</option><option>Logistics</option><option>Maintenance</option></select></div>
+
+          <div style="margin-top:12px;font-weight:700">Assistant actions</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+            <button id="preparePhysical" class="btn btn-outline">Prepare physical package</button>
+            <button id="uploadSigned" class="btn btn-outline">Upload signed document</button>
+            <button id="sendToTRG" class="btn btn-primary">Send Payment Order to TRG</button>
+
+            <label class="compact" style="margin-top:6px">Completion tag</label>
+            <select id="completionTag" class="tag-select" style="width:100%;padding:8px;border-radius:8px;border:1px solid #e6eef6">
+              <option value="">Choose tag (optional)</option>
+              <option>Sent to TRG</option>
+              <option>Will be reimbursed on payday</option>
+              <option>Will pay in cash</option>
+              <option>Rejected</option>
+            </select>
+
+            <button id="markCompleted" class="btn mark-completed">Mark as Completed</button>
+
+            <button id="resubmit" class="btn btn-outline">Resubmit (changes requested)</button>
+            <button id="archiveRejected" class="btn btn-outline" style="color:var(--danger);">Archive Rejected</button>
+          </div>
+
+          <div style="margin-top:12px;font-weight:700">Add note</div>
+          <textarea id="note" rows="4" class="input" style="resize:none"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="saveMeta" class="btn btn-primary">Save</button>
+            <button id="downloadPDF" class="btn btn-outline">Download PDF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- upload panel with Upload Status inside -->
+<div id="uploadBackdrop" class="upload-backdrop" aria-hidden="true" style="display:none">
+  <div id="uploadPanel" class="upload-panel" role="dialog" aria-modal="true" aria-labelledby="uploadPanelTitle" style="background:#fff;padding:16px;border-radius:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <div id="uploadPanelTitle" class="h">Upload</div>
+        <div id="uploadPanelSubtitle" class="compact" style="color:var(--muted)">Select files to upload</div>
+      </div>
+      <div><button id="closeUploadPanel" class="btn btn-outline">✕</button></div>
+    </div>
+
+    <label class="input-file" id="panelFileLabel" style="display:block;padding:12px;border:1px dashed #e6eef6;border-radius:8px;background:#fbfdff;text-align:center;cursor:pointer">Click to choose files
+      <input id="panelFileInput" type="file" accept=".pdf,image/*" multiple style="display:none" />
+    </label>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button id="panelCancel" class="btn btn-outline">Cancel</button>
+      <button id="panelUpload" class="btn btn-primary">Upload</button>
+    </div>
+
+    <!-- Upload Status & Progress inside modal -->
+    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <strong>Upload Status & Progress</strong>
+          <div class="small" style="margin-top:4px;color:var(--muted)">Recent uploads and OCR progress</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="clearUploadList" class="upload-neutral" style="font-weight:600;padding:6px 10px">Clear</button>
+        </div>
+      </div>
+
+      <div id="uploadList" style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+        <div class="upload-item" data-id="u1" style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;gap:10px;align-items:center">
+              <div style="width:36px;height:36;border-radius:8px;background:#eef6ff;display:flex;align-items:center;justify-content:center;color:var(--navy);font-weight:700">PDF</div>
+              <div>
+                <div style="font-weight:700;color:var(--navy)">invoice_oct_001.pdf</div>
+                <div class="small-muted" style="margin-top:4px">Uploading • 1.2 MB</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div class="small-muted" id="status-u1">Uploading</div>
+              <button class="action-btn" data-action="cancel" data-id="u1">Cancel</button>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:center">
+            <div style="flex:1;background:#f1f5f9;border-radius:8px;height:10px;overflow:hidden">
+              <div class="progress-bar" id="progress-u1" style="height:100%;width:0%;background:linear-gradient(90deg,var(--blue),#6ea8ff)"></div>
+            </div>
+            <div style="width:56px;text-align:right;font-weight:700" id="percent-u1">0%</div>
+          </div>
+        </div>
+
+        <div class="upload-item" data-id="u2" style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;gap:10px;align-items:center">
+              <div style="width:36px;height:36;border-radius:8px;background:#fff7ed;display:flex;align-items:center;justify-content:center;color:#9a5800;font-weight:700">IMG</div>
+              <div>
+                <div style="font-weight:700;color:var(--navy)">receipt_sep_22.jpg</div>
+                <div class="small-muted" style="margin-top:4px">OCR processing • 0.4 MB</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div class="small-muted" id="status-u2">Queued</div>
+              <button class="action-btn" data-action="cancel" data-id="u2">Cancel</button>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:center">
+            <div style="flex:1;background:#f1f5f9;border-radius:8px;height:10px;overflow:hidden">
+              <div class="progress-bar" id="progress-u2" style="height:100%;width:0%;background:linear-gradient(90deg,#f59e0b,#ffd08a)"></div>
+            </div>
+            <div style="width:56px;text-align:right;font-weight:700" id="percent-u2">0%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- end Upload Status inside modal -->
+  </div>
+</div>
+
+<script>
+/* Full invoice dataset (unchanged) */
+let invoices = [
+  { id:'inv-001', vendor:'ACME Supplies', number:'INV-1001', date:'2025-09-28', amount:1250.00, status:'pending_review', category:'Office Supplies', items:[{desc:'Paper',qty:10,price:12.5}], history:['Submitted by assistant • 2h ago'], directorAction:null, attachments:[] },
+  { id:'inv-002', vendor:'Travel Co', number:'INV-1002', date:'2025-09-20', amount:420.00, status:'approved_electronic', category:'Travel', items:[{desc:'Taxi',qty:1,price:120},{desc:'Hotel',qty:1,price:300}], history:['Uploaded • Yesterday','Director approved electronically • 2025-10-02 09:15'], directorAction:{type:'approved_electronic',note:'Approved for payment',time:'2025-10-02 09:15'}, attachments:[], completionTag:'Sent to TRG', archivedCompleted:false },
+  { id:'inv-003', vendor:'OfficeMax', number:'INV-1003', date:'2025-09-12', amount:210.00, status:'pending_approval', category:'Office Supplies', items:[{desc:'Staples',qty:5,price:42}], history:['Ready'], directorAction:null, attachments:[] },
+  { id:'inv-004', vendor:'Catering Ltd', number:'INV-1004', date:'2025-10-01', amount:980.00, status:'rejected', category:'Entertainment', items:[{desc:'Lunch',qty:1,price:980}], history:['Rejected by reviewer • 1d ago'], directorAction:{type:'rejected',note:'Not eligible',time:'2025-10-02 09:00'}, attachments:[] },
+  { id:'inv-005', vendor:'Consulting LLC', number:'INV-1005', date:'2025-09-30', amount:3400.00, status:'approved_physical', category:'Consulting', items:[{desc:'Consulting fee',qty:1,price:3400}], history:['Submitted','Director approved (will sign physically) • 2025-10-02 10:30'], directorAction:{type:'approved_physical',note:'Will sign in person',time:'2025-10-02 10:30'}, attachments:[], completionTag:'Will be reimbursed on payday', archivedCompleted:false },
+  { id:'inv-009', vendor:'Vendor A', number:'INV-2001', date:'2025-08-11', amount:500.00, status:'approved_electronic', category:'Office Supplies', items:[{desc:'Ink',qty:5,price:100}], history:['Director approved electronically • 2025-08-15','Assistant marked completed: Sent to TRG • 2025-08-16'], directorAction:{type:'approved_electronic',note:'OK'}, attachments:[], completionTag:'Sent to TRG', archivedCompleted:true },
+  { id:'inv-010', vendor:'Vendor B', number:'INV-2002', date:'2025-07-20', amount:120.00, status:'approved_physical', category:'Travel', items:[{desc:'Taxi',qty:1,price:120}], history:['Director approved (physical) • 2025-07-25','Assistant marked completed: Transfer on Payday • 2025-07-26'], directorAction:{type:'approved_physical',note:'Will sign'}, attachments:[], completionTag:'Will be reimbursed on payday', archivedCompleted:true },
+  { id:'inv-011', vendor:'Vendor C', number:'INV-2003', date:'2025-06-05', amount:60.00, status:'approved_electronic', category:'Office Supplies', items:[{desc:'Staples',qty:3,price:20}], history:['Director approved electronically • 2025-06-10','Assistant marked completed: Will pay in cash • 2025-06-11'], directorAction:{type:'approved_electronic',note:'Approved'}, attachments:[], completionTag:'Will pay in cash', archivedCompleted:true },
+  { id:'inv-006', vendor:'Logistics Inc', number:'INV-1006', date:'2025-09-25', amount:1500.00, status:'pending_approval', category:'Logistics', items:[{desc:'Freight',qty:1,price:1500}], history:['Submitted'], directorAction:null, attachments:[] },
+  { id:'inv-007', vendor:'Stationery Co', number:'INV-1007', date:'2025-10-02', amount:75.00, status:'changes_requested', category:'Office Supplies', items:[{desc:'Pens',qty:15,price:5}], history:['Uploaded • 1h ago','Director requested changes • 2025-10-02 11:00'], directorAction:{type:'changes_requested',note:'Please correct vendor code',time:'2025-10-02 11:00'}, attachments:[] },
+  { id:'inv-008', vendor:'Maintenance Co', number:'INV-1008', date:'2025-10-03', amount:620.00, status:'pending_review', category:'Maintenance', items:[{desc:'Repair',qty:1,price:620}], history:['Submitted • 30m ago'], directorAction:null, attachments:[] }
+];
+
+const getById = id => document.getElementById(id);
+
+function statusClass(s){
+  if(s==='pending_review') return 's-pending-review';
+  if(s==='pending_approval') return 's-pending-approval';
+  if(s==='approved_electronic') return 's-approved-electronic';
+  if(s==='approved_physical') return 's-approved-physical';
+  if(s==='changes_requested') return 's-changes-requested';
+  if(s==='rejected') return 's-rejected';
+  return 's-pending-review';
+}
+function statusLabel(s){
+  if(s==='pending_review') return 'Pending Review';
+  if(s==='pending_approval') return 'Pending Approval';
+  if(s==='approved_electronic') return 'Approved (Electronic)';
+  if(s==='approved_physical') return 'Approved (Physical)';
+  if(s==='changes_requested') return 'Changes Requested';
+  if(s==='rejected') return 'Rejected';
+  return s;
+}
+function inDateRange(invDateISO, fromISO, toISO){
+  if(!fromISO && !toISO) return true;
+  const invD = new Date(invDateISO + 'T00:00:00');
+  if(fromISO){ const fromD = new Date(fromISO + 'T00:00:00'); if(invD < fromD) return false; }
+  if(toISO){ const toD = new Date(toISO + 'T23:59:59'); if(invD > toD) return false; }
+  return true;
+}
+
+/* Render inbox */
+function renderInbox(){
+  const tbody = getById('inboxBody');
+  tbody.innerHTML = '';
+  const q = (getById('q') && getById('q').value.toLowerCase()) || '';
+  const st = getById('statusFilter') ? getById('statusFilter').value : '';
+  const cat = getById('categoryFilter') ? getById('categoryFilter').value : '';
+  const from = getById('dateFrom') ? getById('dateFrom').value : '';
+  const to = getById('dateTo') ? getById('dateTo').value : '';
+  const showCompleted = getById('showCompleted') ? getById('showCompleted').checked : false;
+  const tagFilter = getById('completionTagFilter') ? (getById('completionTagFilter').value || '').trim() : '';
+
+  invoices.forEach(inv => {
+    if(showCompleted){
+      if(!inv.archivedCompleted) return;
+    } else {
+      if(inv.archivedCompleted) return;
+    }
+
+    if (st && inv.status !== st) return;
+    if (cat && cat !== '' && inv.category !== cat) return;
+    if (!inDateRange(inv.date, from, to)) return;
+
+    if (q){
+      const matches = (inv.vendor || '').toLowerCase().includes(q) ||
+                      (inv.number || '').toLowerCase().includes(q) ||
+                      String(inv.amount).includes(q) ||
+                      ((inv.completionTag||'').toLowerCase().includes(q));
+      if(!matches) return;
+    }
+
+    if (tagFilter){
+      if ((inv.completionTag||'') !== tagFilter) return;
+    }
+
+    const tr = document.createElement('tr');
+    tr.dataset.id = inv.id;
+
+    const tdCheck = document.createElement('td'); const chk = document.createElement('input'); chk.type = 'checkbox'; chk.dataset.id = inv.id; tdCheck.appendChild(chk); tr.appendChild(tdCheck);
+    const tdVendor = document.createElement('td'); tdVendor.textContent = inv.vendor || ''; tr.appendChild(tdVendor);
+    const tdNumber = document.createElement('td'); tdNumber.textContent = inv.number || ''; tr.appendChild(tdNumber);
+    const tdDate = document.createElement('td'); tdDate.textContent = inv.date || ''; tr.appendChild(tdDate);
+    const tdAmount = document.createElement('td'); tdAmount.className = 'amount'; tdAmount.textContent = '$' + (Number(inv.amount || 0)).toFixed(2); tr.appendChild(tdAmount);
+
+    const tdStatus = document.createElement('td'); tdStatus.className = 'status';
+    const span = document.createElement('span'); span.className = 'status ' + statusClass(inv.status); span.textContent = statusLabel(inv.status);
+    tdStatus.appendChild(span); tr.appendChild(tdStatus);
+
+    const tdActions = document.createElement('td'); tdActions.className = 'compact actions';
+    const btnOpen = document.createElement('button'); btnOpen.className='btn btn-outline open'; btnOpen.type='button'; btnOpen.dataset.id=inv.id; btnOpen.textContent='Open'; tdActions.appendChild(btnOpen);
+
+    if(inv.status === 'pending_review'){
+      const btnSubmit = document.createElement('button'); btnSubmit.className='btn btn-outline submit'; btnSubmit.type='button'; btnSubmit.dataset.id=inv.id; btnSubmit.textContent='Submit'; tdActions.appendChild(btnSubmit);
+    }
+
+    if(inv.status === 'changes_requested'){
+      const btnResubmit = document.createElement('button'); btnResubmit.className='btn btn-outline resubmit-row'; btnResubmit.type='button'; btnResubmit.dataset.id=inv.id; btnResubmit.textContent='Resubmit'; tdActions.appendChild(btnResubmit);
+    }
+
+    if(inv.status === 'pending_review'){
+      const btnDelete = document.createElement('button'); btnDelete.className='btn btn-outline delete'; btnDelete.type='button'; btnDelete.dataset.id = inv.id;
+      btnDelete.style.color='var(--danger)'; btnDelete.style.borderColor='#fee2e2'; btnDelete.textContent='Delete'; tdActions.appendChild(btnDelete);
+    }
+
+    if((inv.status === 'approved_electronic' || inv.status === 'approved_physical' || inv.status === 'rejected') && !showCompleted){
+      const btnCompleted = document.createElement('button'); btnCompleted.className='btn mark-completed'; btnCompleted.type='button'; btnCompleted.dataset.id=inv.id; btnCompleted.textContent='Mark as Completed';
+      tdActions.appendChild(btnCompleted);
+    }
+
+    tr.appendChild(tdActions);
+    tbody.appendChild(tr);
+  });
+}
+
+/* Inline picker and completion-tag injection (unchanged) */
+function showInlineTagPicker(anchorBtn, invId){
+  const existing = anchorBtn.parentElement.querySelector('.tag-picker');
+  if(existing) return;
+
+  const picker = document.createElement('span');
+  picker.className = 'tag-picker';
+
+  const sel = document.createElement('select');
+  sel.className = 'filter';
+  sel.innerHTML = '<option value="">Choose tag (optional)</option><option>Sent to TRG</option><option>Will be reimbursed on payday</option><option>Will pay in cash</option><option>Rejected</option>';
+
+  const applyBtn = document.createElement('button');
+  applyBtn.className = 'btn btn-primary';
+  applyBtn.type = 'button';
+  applyBtn.textContent = 'Apply';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-outline';
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+
+  picker.appendChild(sel);
+  picker.appendChild(applyBtn);
+  picker.appendChild(cancelBtn);
+
+  anchorBtn.parentElement.appendChild(picker);
+
+  setTimeout(()=> sel.focus(), 50);
+
+  function removePicker(){
+    if(picker && picker.parentElement) picker.remove();
+  }
+
+  applyBtn.addEventListener('click', () => {
+    const tag = sel.value || '';
+    const inv = invoices.find(i => i.id === invId);
+    if(!inv) { removePicker(); return; }
+    inv.completionTag = tag;
+    inv.history = (inv.history||[]).concat([`Assistant marked completed${tag?': '+tag:''} • ${new Date().toLocaleString()}`]);
+    inv.archivedCompleted = true;
+    removePicker();
+    renderInbox();
+    alert('Marked completed (demo).');
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    removePicker();
+  });
+
+  function onDocClick(e){
+    if(!picker.contains(e.target) && e.target !== anchorBtn){
+      removePicker();
+      document.removeEventListener('click', onDocClick);
+    }
+  }
+  setTimeout(()=> document.addEventListener('click', onDocClick), 50);
+}
+
+function createCompletionTagSelect() {
+  const sel = document.createElement('select');
+  sel.id = 'completionTagFilter';
+  sel.className = 'filter';
+  sel.style.maxWidth = '200px';
+  sel.innerHTML = '<option value="">Any completion tag</option>'
+                + '<option>Sent to TRG</option>'
+                + '<option>Will be reimbursed on payday</option>'
+                + '<option>Will pay in cash</option>'
+                + '<option>Rejected</option>';
+  sel.addEventListener('input', () => renderInbox());
+  return sel;
+}
+function removeInjectedCompletionTagSelect() {
+  const existing = document.getElementById('completionTagFilter');
+  if (existing && existing.parentElement && existing.parentElement.id === 'showCompletedWrap') {
+    existing.remove();
+  }
+}
+
+/* IMPORTANT: define closeDetail so listeners that reference it won't error */
+function closeDetail(){ 
+  const panel = getById('detailPanel');
+  if(panel) panel.style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  const showWrap = document.getElementById('showCompletedWrap');
+  const sc = document.getElementById('showCompleted');
+
+  removeInjectedCompletionTagSelect();
+
+  function toggleInlineTagSelect() {
+    removeInjectedCompletionTagSelect();
+    if (sc.checked) {
+      const sel = createCompletionTagSelect();
+      showWrap.appendChild(sel);
+      setTimeout(()=>sel.focus(),100);
+    }
+    renderInbox();
+  }
+
+  sc.addEventListener('change', toggleInlineTagSelect);
+  sc.addEventListener('input', toggleInlineTagSelect);
+  toggleInlineTagSelect();
+
+  ['q','statusFilter','categoryFilter','dateFrom','dateTo'].forEach(id=>{
+    const el = getById(id); if(el) el.addEventListener('input', ()=> renderInbox());
+  });
+
+  renderInbox();
+});
+
+/* delegated inbox actions */
+getById('inboxBody').addEventListener('click', (e)=>{
+  const openBtn = e.target.closest('.open'); if(openBtn){ openDetail(openBtn.dataset.id); return; }
+  const submitBtn = e.target.closest('.submit'); if(submitBtn){
+    const id = submitBtn.dataset.id; const inv = invoices.find(i=>i.id===id); if(!inv) return;
+    if(inv.status === 'pending_review'){ inv.status='pending_approval'; inv.history=(inv.history||[]).concat([`Submitted to Director • ${new Date().toLocaleString()}`]); renderInbox(); alert(`Submitted ${inv.number} to Director (demo).`);} else alert('Submit ignored');
+    return;
+  }
+  const resubmitRow = e.target.closest('.resubmit-row'); if(resubmitRow){
+    const id = resubmitRow.dataset.id; const inv=invoices.find(i=>i.id===id); if(!inv) return;
+    if(inv.status==='changes_requested'){ const note = prompt('Resubmission note (demo)','Corrected'); inv.history=(inv.history||[]).concat([`Resubmitted • ${new Date().toLocaleString()} • ${note}`]); inv.status='pending_approval'; renderInbox(); alert('Resubmitted (demo).');}
+    return;
+  }
+  const deleteBtn = e.target.closest('.delete'); if(deleteBtn){
+    const id = deleteBtn.dataset.id; const inv=invoices.find(i=>i.id===id); if(!inv) return; if(inv.status!=='pending_review'){ alert('Cannot delete'); return; } if(!confirm(`Delete ${inv.number}?`)) return; invoices=invoices.filter(i=>i.id!==id); renderInbox(); return;
+  }
+  const completedBtn = e.target.closest('.mark-completed'); if(completedBtn){
+    const id = completedBtn.dataset.id; const inv=invoices.find(i=>i.id===id); if(!inv) return;
+    if(inv.status === 'rejected'){
+      inv.completionTag = 'Rejected';
+      inv.history=(inv.history||[]).concat([`Assistant marked completed: Rejected • ${new Date().toLocaleString()}`]);
+      inv.archivedCompleted = true;
+      renderInbox();
+      alert('Marked rejected invoice as completed with tag "Rejected" (demo).');
+      return;
+    }
+    if(inv.status==='approved_electronic' || inv.status==='approved_physical'){
+      showInlineTagPicker(completedBtn, id);
+      return;
+    }
+    alert('Mark as Completed available only for approved or rejected invoices');
+    return;
+  }
+});
+
+/* assistant detail actions (unchanged) */
+getById('backToInbox').addEventListener('click', closeDetail);
+getById('preparePhysical').addEventListener('click', ()=>{
+  const number = getById('dNumber').value; const inv=invoices.find(i=>i.number===number); if(!inv) return;
+  inv.history=(inv.history||[]).concat([`Assistant prepared physical package • ${new Date().toLocaleString()}`]); alert('Prepared (demo).'); renderInbox(); openDetail(inv.id);
+});
+getById('uploadSigned').addEventListener('click', ()=>{
+  const number = getById('dNumber').value; const inv=invoices.find(i=>i.number===number); if(!inv) return;
+  const fname = prompt('Signed filename (demo)', (inv.number||'signed')+'_signed.pdf'); if(!fname) return;
+  inv.attachments = inv.attachments || []; inv.attachments.push({name:fname,type:'Signed Document',signed:'physical',signedAt:new Date().toLocaleString()});
+  inv.history=(inv.history||[]).concat([`Assistant uploaded signed document ${fname} • ${new Date().toLocaleString()}`]); renderInbox(); openDetail(inv.id);
+});
+getById('sendToTRG').addEventListener('click', ()=>{
+  const number = getById('dNumber').value; const inv=invoices.find(i=>i.number===number); if(!inv) return;
+  if(!confirm(`Send Payment Order for ${inv.number} to TRG? (demo)`)) return;
+  inv.history=(inv.history||[]).concat([`Assistant sent Payment Order to TRG • ${new Date().toLocaleString()}`]);
+  const tag = getById('completionTag') ? getById('completionTag').value : '';
+  if(tag) inv.history.push(`Tag: ${tag} • ${new Date().toLocaleString()}`);
+  alert('Sent to TRG (demo).'); renderInbox(); openDetail(inv.id);
+});
+getById('markCompleted').addEventListener('click', ()=>{
+  const number = getById('dNumber').value; const inv=invoices.find(i=>i.number===number); if(!inv) return;
+  if(!(inv.status==='approved_electronic' || inv.status==='approved_physical')){ alert('Only for approved invoices'); return; }
+  const tag = getById('completionTag') ? getById('completionTag').value : prompt('Completion tag (demo)','Sent to TRG') || '';
+  inv.completionTag = tag;
+  inv.history=(inv.history||[]).concat([`Assistant marked completed${tag?': '+tag:''} • ${new Date().toLocaleString()}`]);
+  inv.archivedCompleted = true; alert('Marked as completed (demo).'); renderInbox(); closeDetail();
+});
+getById('resubmit').addEventListener('click', ()=>{
+  const number = getById('dNumber').value; const inv=invoices.find(i=>i.number===number); if(!inv) return;
+  if(inv.status!=='changes_requested'){ alert('Resubmit only for Changes Requested'); return; }
+  const note = prompt('Resubmission note (demo)','Corrected and reuploaded') || '';
+  inv.history=(inv.history||[]).concat([`Assistant resubmitted corrected invoice • ${new Date().toLocaleString()} • ${note}`]);
+  inv.status='pending_approval'; renderInbox(); openDetail(inv.id);
+});
+getById('archiveRejected').addEventListener('click', ()=>{
+  const number = getById('dNumber').value; const inv=invoices.find(i=>i.number===number); if(!inv) return;
+  if(inv.status!=='rejected'){ alert('Archive only for Rejected'); return; }
+  if(!confirm('Archive this rejected invoice?')) return;
+  inv.history=(inv.history||[]).concat([`Assistant archived rejected invoice • ${new Date().toLocaleString()}`]);
+  inv.archivedRejected = true; renderInbox(); closeDetail();
+});
+
+/* --- Upload functions restored and defined before listeners ---
+    Updated: when mode === 'scan' set panel title to "Scan to Upload"
+    and subtitle to guide desktop scanner usage. Nothing else changed.
+*/
+function openUploadPanel(mode){
+  const b = getById('uploadBackdrop');
+  b.style.display = 'flex';
+  b.setAttribute('aria-hidden','false');
+  // set titles like 7.txt, with scan guidance
+  const title = getById('uploadPanelTitle');
+  const sub = getById('uploadPanelSubtitle');
+  if(title) {
+    if(mode === 'scan') title.textContent = 'Scan to Upload';
+    else title.textContent = mode === 'single' ? 'Upload' : mode === 'bulk' ? 'Bulk upload' : 'Upload';
+  }
+  if(sub) {
+    if(mode === 'scan') sub.textContent = 'Use your desktop scanner software to scan the document. Then upload the scanned file below.';
+    else sub.textContent = mode === 'single' ? 'Select files to upload' : mode === 'bulk' ? 'Select multiple files to upload' : 'Select files to upload';
+  }
+}
+function closeUploadPanel(){
+  const b = getById('uploadBackdrop');
+  b.style.display = 'none';
+  b.setAttribute('aria-hidden','true');
+}
+
+/* Upload Status & Progress simulation and integration inside modal */
+(function(){
+  const progressState = {}; // dynamic entries
+  function startSimulation(id){
+    const interval = setInterval(()=> {
+      const st = progressState[id];
+      if(!st) { clearInterval(interval); return; }
+      if(st.stage === 'queued') {
+        st.pct += 1;
+        if(st.pct >= 5) st.stage = 'uploading';
+      } else if(st.stage === 'uploading') {
+        st.pct += 6 + Math.random() * 4;
+        if(st.pct >= 90) { st.pct = 90; st.stage = 'ocr'; }
+      } else if(st.stage === 'ocr') {
+        st.pct += 3 + Math.random() * 4;
+        if(st.pct >= 100) { st.pct = 100; st.stage = 'done'; }
+      } else if(st.stage === 'done') {
+        clearInterval(interval);
+      }
+      updateUI(id, st.pct, st.stage);
+    }, 400);
+  }
+  function updateUI(id, pct, stage){
+    const progressEl = document.getElementById('progress-' + id);
+    const percentEl = document.getElementById('percent-' + id);
+    const statusEl = document.getElementById('status-' + id);
+    if(progressEl) progressEl.style.width = Math.min(100, Math.round(pct)) + '%';
+    if(percentEl) percentEl.textContent = Math.min(100, Math.round(pct)) + '%';
+    if(statusEl) {
+      const label = stage === 'queued' ? 'Queued' : stage === 'uploading' ? 'Uploading' : stage === 'ocr' ? 'OCR processing' : stage === 'done' ? 'Complete' : stage === 'cancelled' ? 'Cancelled' : 'Unknown';
+      statusEl.textContent = label;
+    }
+    if(stage === 'done'){
+      const item = document.querySelector(`.upload-item[data-id="${id}"]`);
+      if(item){
+        const existingBtns = item.querySelectorAll('.action-btn');
+        existingBtns.forEach(b=>{
+          const parent = b.parentElement;
+          if(parent) parent.removeChild(b);
+        });
+        const openBtn = document.createElement('button'); openBtn.className = 'action-btn'; openBtn.dataset.action = 'open'; openBtn.dataset.id = id; openBtn.textContent = 'Open';
+        const delBtn = document.createElement('button'); delBtn.className = 'action-btn'; delBtn.dataset.action = 'delete'; delBtn.dataset.id = id; delBtn.style.background = '#fff'; delBtn.style.borderColor = '#fecaca'; delBtn.style.color = 'var(--danger)'; delBtn.textContent = 'Delete';
+        const controlArea = item.querySelector('.upload-controls') || (() => {
+          const c = document.createElement('div'); c.className = 'upload-controls'; c.style.display = 'flex'; c.style.gap = '8px'; c.style.alignItems = 'center';
+          const top = item.querySelector('div[style*="justify-content:space-between"]');
+          if(top){
+            const old = top.querySelector('div:last-child');
+            if(old) old.parentElement.replaceChild(c, old);
+          }
+          return c;
+        })();
+        controlArea.appendChild(openBtn);
+        controlArea.appendChild(delBtn);
+      }
+    }
+  }
+
+  // wire clear/delete/open/cancel within modal
+  document.getElementById('uploadList').addEventListener('click', e => {
+    const btn = e.target.closest('.action-btn');
+    if(!btn) return;
+    const action = btn.dataset.action || btn.getAttribute('data-action');
+    const id = btn.dataset.id || btn.getAttribute('data-id');
+    if(action === 'cancel'){
+      if(progressState[id]) progressState[id].stage = 'cancelled';
+      updateUI(id, 0, 'cancelled');
+      btn.textContent = 'Cancelled';
+      btn.disabled = true;
+      const statusEl = document.getElementById('status-' + id);
+      if(statusEl) statusEl.textContent = 'Cancelled';
+    } else if(action === 'open'){
+      alert('Open uploaded file: ' + id + ' (demo).');
+    } else if(action === 'delete'){
+      const item = document.querySelector(`.upload-item[data-id="${id}"]`);
+      if(item) item.remove();
+      delete progressState[id];
+    }
+  });
+
+  const clearBtn = document.getElementById('clearUploadList');
+  if(clearBtn) clearBtn.addEventListener('click', ()=> {
+    const list = document.getElementById('uploadList');
+    if(list) list.innerHTML = '<div class="small-muted" style="padding:12px">No recent uploads</div>';
+  });
+
+  // When user clicks Upload in modal, create items in modal list and start simulation
+  const panelUploadBtn = document.getElementById('panelUpload');
+  if(panelUploadBtn){
+    panelUploadBtn.addEventListener('click', ()=>{
+      const files = getById('panelFileInput').files;
+      if(!files || files.length === 0){ alert('Choose files (demo)'); return; }
+      for(let i=0;i<files.length;i++){
+        const f = files[i];
+        const id = 'local-' + Date.now() + '-' + i;
+        const item = document.createElement('div');
+        item.className = 'upload-item';
+        item.dataset.id = id;
+        item.style.display = 'flex';
+        item.style.flexDirection = 'column';
+        item.style.gap = '8px';
+        const kind = (f.type && f.type.startsWith('image')) ? 'IMG' : 'PDF';
+        item.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:36px;height:36;border-radius:8px;background:#eef6ff;display:flex;align-items:center;justify-content:center;color:var(--navy);font-weight:700">${kind}</div>
+            <div><div style="font-weight:700;color:var(--navy)">${escapeHtml(f.name)}</div><div class="small-muted" style="margin-top:4px">Queued • ${(f.size/1024/1024).toFixed(2)} MB</div></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center"><div class="small-muted" id="status-${id}">Queued</div><button class="action-btn" data-action="cancel" data-id="${id}">Cancel</button></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="flex:1;background:#f1f5f9;border-radius:8px;height:10px;overflow:hidden"><div class="progress-bar" id="progress-${id}" style="height:100%;width:0%;background:linear-gradient(90deg,var(--blue),#6ea8ff)"></div></div>
+          <div style="width:56px;text-align:right;font-weight:700" id="percent-${id}">0%</div>
+        </div>`;
+        const uploadList = document.getElementById('uploadList');
+        if(uploadList) uploadList.insertBefore(item, uploadList.firstChild);
+        progressState[id] = { pct: 0, stage: 'queued' };
+        setTimeout(()=> startSimulation(id), 300 + i*300);
+      }
+      alert(`Uploading ${files.length} file(s) (demo).`);
+      closeUploadPanel();
+    });
+  }
+})();
+
+/* Upload panel listeners wired to restored functions */
+getById('newUpload').addEventListener('click', ()=> openUploadPanel('single'));
+getById('bulkUpload').addEventListener('click', ()=> openUploadPanel('bulk'));
+getById('scanUpload').addEventListener('click', ()=> openUploadPanel('scan'));
+getById('closeUploadPanel').addEventListener('click', ()=> closeUploadPanel());
+getById('panelCancel').addEventListener('click', ()=> closeUploadPanel());
+getById('panelFileLabel').addEventListener('click', ()=> getById('panelFileInput').click());
+
+/* filters */
+['q','statusFilter','categoryFilter','dateFrom','dateTo','showCompleted','completionTagFilter'].forEach(id=>{ const el=getById(id); if(el) el.addEventListener('input', ()=> renderInbox()); });
+
+/* utilities */
+function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]);}
+
+/* init */
+renderInbox();
+</script>
+</body>
+</html>
+```

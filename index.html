@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Expense Module — HR Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--blue:#0b5cff;--navy:#08306b;--muted:#6b7280;--bg:#f5f7fb;--card:#ffffff;--success:#12b76a;--warn:#f59e0b;--danger:#ef4444;--glass: rgba(11,92,255,0.06);}
+  *{box-sizing:border-box}
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+  header{background:#fff;padding:16px 28px;border-bottom:1px solid #eef2f7;display:flex;align-items:center;justify-content:space-between}
+  .brand{font-weight:700;color:var(--navy);font-size:18px}
+  nav{display:flex;gap:12px;align-items:center}
+  nav a{color:var(--navy);text-decoration:none;font-weight:600}
+  .wrap{max-width:1200px;margin:28px auto;padding:0 20px}
+  .grid{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
+  .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 8px 30px rgba(12,20,40,0.06);border:1px solid rgba(12,20,40,0.04)}
+  .row{display:flex;gap:12px;align-items:center}
+  h1{margin:0;color:var(--navy);font-size:22px}
+  .lead{color:var(--muted);margin-top:6px}
+  .summary{display:flex;gap:12px;margin-top:14px}
+  .sum-card{flex:1;padding:14px;border-radius:10px;background:linear-gradient(180deg,#ffffff,#fbfdff);border:1px solid rgba(11,92,255,0.06)}
+  .sum-title{font-size:13px;color:var(--muted);font-weight:600}
+  .sum-value{font-size:20px;color:var(--navy);font-weight:700;margin-top:6px}
+  .chart-wrap{margin-top:18px}
+  .chart{width:100%;height:260px;background:linear-gradient(180deg,#ffffff,#fbfdff);border-radius:10px;padding:10px;border:1px solid rgba(11,92,255,0.04)}
+  .upload-box{border:2px dashed var(--glass);border-radius:10px;padding:12px;text-align:center;color:var(--muted);cursor:pointer;position:relative;}
+  .small{font-size:13px;color:var(--muted)}
+  .timeline{margin-top:12px}
+  .timeline .event{padding:8px;border-left:3px solid var(--glass);margin-bottom:10px;background:#fff;border-radius:8px;border:1px solid rgba(2,6,23,0.03)}
+  .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
+  .status-pill{padding:6px 8px;border-radius:999px;font-weight:700;font-size:13px;display:inline-block}
+  .s-pending{background:#fff7ed;color:#9a5800}
+  .s-under{background:#fff7ed;color:#9a5800}
+  .s-approved{background:#ecfdf5;color:var(--success)}
+  .s-rejected{background:#fff1f2;color:var(--danger)}
+  .icon-btn{background:transparent;border:0;cursor:pointer;padding:8px;border-radius:8px;display:inline-flex;align-items:center}
+
+  .upload-neutral{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 12px;
+    border-radius:8px;
+    border:1px solid #e6eef6;
+    background:#fff;
+    color:var(--navy);
+    font-weight:700;
+    cursor:pointer;
+    text-decoration:none;
+  }
+  .upload-neutral:hover{background:rgba(11,92,255,0.03);}
+
+  #invoiceBtn { all: unset; display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; border:1px solid #e6eef6; background:#fff; color:var(--navy); font-weight:700; cursor:pointer; }
+  #invoiceBtn:hover{ background:rgba(11,92,255,0.03); }
+
+  .dropdown{position:absolute;right:0;top:44px;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(2,6,23,.12);border:1px solid rgba(2,6,23,.04);overflow:hidden;width:420px;max-width:calc(100vw - 40px);z-index:1000;}
+  .dropdown .head{padding:12px 14px;font-weight:700;border-bottom:1px solid #f1f5f9}
+  .dropdown .body{max-height:420px;overflow:auto;padding:12px 14px;background:#fff;}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{padding:8px 6px;text-align:left;border-bottom:1px solid #f1f5f9;color:#0f172a}
+  th{font-weight:700;color:var(--muted);font-size:12px}
+  a.inv { color:var(--navy); font-weight:700; text-decoration:none; cursor:pointer; }
+  a.inv:hover { text-decoration:underline; }
+  .small-muted{font-size:12px;color:var(--muted)}
+  .progress-bar{transition:width .3s linear}
+  .clickable-num { color:var(--blue); font-weight:800; text-decoration:underline; cursor:pointer; }
+  @media(max-width:1000px){ .grid{grid-template-columns:1fr} .right-panel{order:2} .left-panel{order:1} .dropdown{width:320px} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Expense Module</div>
+  <nav>
+    <div style="position:relative">
+  <button id="uploadBtn" class="upload-neutral" aria-haspopup="true" aria-expanded="false" title="Upload">Upload</button>
+  <div id="uploadMenu" class="dropdown" role="menu" aria-hidden="true" style="display:none">
+    <div class="head">Upload</div>
+    <div class="body">
+      <label style="width:100%;text-align:left;padding:10px;display:block;cursor:pointer;">
+        Upload New Invoice / Receipt
+        <input type="file" id="uploadInvoiceInput" style="display:none" multiple />
+      </label>
+      <label style="width:100%;text-align:left;padding:10px;display:block;cursor:pointer;">
+        Scan & Upload
+        <input type="file" id="scanUploadInput" style="display:none" multiple />
+      </label>
+      <label style="width:100%;text-align:left;padding:10px;display:block;cursor:pointer;">
+        Bulk Upload
+        <input type="file" id="bulkUploadInput" style="display:none" multiple />
+      </label>
+      <div id="uploadResult" style="font-size:13px;color:var(--navy);margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+    <div style="position:relative">
+      <a id="invoiceBtn" href="Assistant_Invoice_Management.html" title="Invoice Management" role="button">Invoice Management</a>
+    </div>
+
+    <div style="position:relative">
+      <button id="notifBtn" class="icon-btn" aria-haspopup="true" aria-expanded="false" title="Notifications">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M15 17H9a2 2 0 0 1-2-2V11a6 6 0 0 1 12 0v4a2 2 0 0 1-2 2Z" stroke="#0b5cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 21a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Z" stroke="#0b5cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="notifBadge" style="display:inline-block;background:#ef4444;color:#fff;border-radius:999px;padding:4px 7px;font-size:12px;margin-left:6px;min-width:28px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.18)">3</span>
+      </button>
+      <div id="notifMenu" class="dropdown" role="menu" aria-hidden="true" style="display:none;width:360px">
+        <div class="head">Notifications <div style="float:right;font-weight:600"><button id="markAllBtn" style="background:transparent;border:0;color:#0b5cff;cursor:pointer;font-weight:700">Mark all read</button></div></div>
+        <div class="body" id="notifList">
+          <div class="notif-item" data-read="false" style="padding:8px;border-bottom:1px solid #f8fafc"><div style="font-weight:700"><a class="inv" data-inv="INV-2025-002" href="Assistant_View_Invoice.html?inv=INV-2025-002">INV-2025-002</a></div><div style="font-size:13px;color:#6b7280">Submitted by HR Assistant • 2 hours ago</div></div>
+          <div class="notif-item" data-read="false" style="padding:8px;border-bottom:1px solid #f8fafc"><div style="font-weight:700"><a class="inv" data-inv="INV-2025-001" href="Assistant_View_Invoice.html?inv=INV-2025-001">INV-2025-001</a></div><div style="font-size:13px;color:#6b7280">Edited by HR Assistant • 1 hour ago</div></div>
+          <div class="notif-item" data-read="false" style="padding:8px"><div style="font-weight:700"><a class="inv" data-inv="INV-2025-003" href="Assistant_View_Invoice.html?inv=INV-2025-003">INV-2025-003</a></div><div style="font-size:13px;color:#6b7280">Approved by Director • 3 days ago</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:relative">
+      <button id="userBtn" aria-haspopup="true" aria-expanded="false" class="icon-btn" title="Account">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden><circle cx="12" cy="12" r="11" fill="#eef6ff" stroke="#0b5cff" stroke-width="1.2"></circle><path d="M12 12a3 3 0 1 0 0-6a3 3 0 0 0 0 6ZM6.5 17.5a5.5 5.5 0 0 1 11 0v.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-.5Z" fill="#0b5cff"/></svg>
+      </button>
+      <div id="userMenu" class="dropdown" role="menu" aria-hidden="true" style="display:none;width:220px">
+        <div class="head" style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700">Theresa</div><div class="small-muted">theresa@company.com</div></div></div>
+        <div class="body"><button data-menu="profile" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Profile</button><button data-menu="settings" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Settings</button><button id="signOutBtn" style="width:100%;text-align:left;padding:10px;border:0;background:transparent;cursor:pointer">Sign out</button></div>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="grid">
+    <section class="left-panel">
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><div><h1>Hello, Theresa</h1><div class="lead">Expense Dashboard</div></div></div>
+        <div class="summary" aria-hidden="false">
+          <div class="sum-card">
+            <div class="sum-title">Pending Reviews</div>
+            <div class="sum-value" id="pendingCountWrap">
+              <a id="pendingNumLink" class="clickable-num" href="Assistant_Invoice_Management.html?filter=pending">8</a>
+            </div>
+            <div class="small" style="margin-top:8px">Invoices awaiting Director approval</div>
+          </div>
+          <div class="sum-card"><div class="sum-title">Total Invoices</div><div class="sum-value" id="totalCount">24</div><div class="small" style="margin-top:8px">Records in the system</div></div>
+          <div class="sum-card"><div class="sum-title">Total Value</div><div class="sum-value" id="totalValue">$28,430</div><div class="small" style="margin-top:8px">Sum of invoice amounts</div></div>
+        </div>
+
+        <div class="chart-wrap">
+          <div class="chart" role="img" aria-label="Expenses vs Revenue chart showing months January to October and Y-axis values 30k to 120k">
+            <svg viewBox="0 0 820 260" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%">
+              <defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#e6f0ff"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>
+              <rect x="0" y="0" width="100%" height="100%" fill="url(#g1)"></rect>
+              <g fill="#94a3b8" font-size="12" text-anchor="end" font-family="Inter, system-ui, Arial">
+                <text x="48" y="40">120k</text>
+                <text x="48" y="90">90k</text>
+                <text x="48" y="140">60k</text>
+                <text x="48" y="190">30k</text>
+              </g>
+              <g stroke="#eef4ff" stroke-width="1">
+                <line x1="60" x2="780" y1="30" y2="30"></line>
+                <line x1="60" x2="780" y1="80" y2="80"></line>
+                <line x1="60" x2="780" y1="130" y2="130"></line>
+                <line x1="60" x2="780" y1="180" y2="180"></line>
+              </g>
+              <g stroke="#dbeafe" stroke-width="1"><line x1="60" x2="60" y1="20" y2="200"></line></g>
+              <polyline fill="none" stroke="#0b5cff" stroke-width="3" points="60,150 140,130 220,90 300,60 380,80 460,70 540,90 620,100 700,80 780,60"></polyline>
+              <polyline fill="none" stroke="#9aaedb" stroke-width="2" points="60,160 140,155 220,150 300,145 380,148 460,142 540,145 620,150 700,148 780,145"></polyline>
+              <g fill="#94a3b8" font-size="12" text-anchor="middle" font-family="Inter, system-ui, Arial">
+                <text x="60"  y="225">Jan</text>
+                <text x="140" y="225">Feb</text>
+                <text x="220" y="225">Mar</text>
+                <text x="300" y="225">Apr</text>
+                <text x="380" y="225">May</text>
+                <text x="460" y="225">Jun</text>
+                <text x="540" y="225">Jul</text>
+                <text x="620" y="225">Aug</text>
+                <text x="700" y="225">Sep</text>
+                <text x="780" y="225">Oct</text>
+              </g>
+              <g font-family="Inter, system-ui, Arial" font-size="13" fill="#0f172a">
+                <text x="780" y="20" text-anchor="end" font-weight="700">Total: $28,430</text>
+              </g>
+            </svg>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:12px;align-items:center">
+            <div class="card" style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:center"><div><strong>Category Breakdown</strong><div class="small">Top 4 categories</div></div><div class="small">Last 30 days</div></div>
+              <div style="display:flex;gap:12px;margin-top:12px;align-items:center">
+                <div style="width:120px;height:120px"><svg viewBox="0 0 32 32" style="width:100%;height:100%">
+  <!-- Office Supplies: 35% -->
+  <circle
+    r="10" cx="16" cy="16"
+    fill="transparent"
+    stroke="#0b5cff"
+    stroke-width="10"
+    stroke-dasharray="22 40.8"
+    stroke-dashoffset="0"
+  ></circle>
+  <!-- Travel: 29% -->
+  <circle
+    r="10" cx="16" cy="16"
+    fill="transparent"
+    stroke="#12b76a"
+    stroke-width="10"
+    stroke-dasharray="18.2 44.6"
+    stroke-dashoffset="22"
+  ></circle>
+  <!-- Food & Catering: 20% -->
+  <circle
+    r="10" cx="16" cy="16"
+    fill="transparent"
+    stroke="#f59e0b"
+    stroke-width="10"
+    stroke-dasharray="12.6 50.2"
+    stroke-dashoffset="40.2"
+  ></circle>
+  <!-- Equipment: 16% -->
+  <circle
+    r="10" cx="16" cy="16"
+    fill="transparent"
+    stroke="#ef4444"
+    stroke-width="10"
+    stroke-dasharray="10 52.8"
+    stroke-dashoffset="52.8"
+  ></circle>
+  <!-- Background ring for visual separation -->
+  <circle r="10" cx="16" cy="16" fill="transparent" stroke="#eef2ff" stroke-width="10"></circle>
+</svg></div>
+                <div style="flex:1"><div class="small"><strong>Office Supplies</strong> <div class="small-muted">$7,200</div></div><div style="height:8px"></div><div class="small"><strong>Travel</strong> <div class="small-muted">$5,900</div></div><div style="height:8px"></div><div class="small"><strong>Food & Catering</strong> <div class="small-muted">$4,080</div></div><div style="height:8px"></div><div class="small"><strong>Equipment</strong> <div class="small-muted">$2,670</div></div></div>
+              </div>
+            </div>
+
+            <div style="width:320px" class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center"><div><strong>Pending Reviews</strong><div class="small">Needs Assistant action</div></div><div style="text-align:right"><span class="status-pill s-pending">Pending</span></div></div>
+              <div class="timeline" id="pendingList" style="margin-top:12px">
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-001" href="Assistant_View_Invoice.html?inv=INV-2025-001">INV-2025-001</a></strong><div class="small">ABC Supplies • $1,250 • 2 attachments</div></div>
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-002" href="Assistant_View_Invoice.html?inv=INV-2025-002">INV-2025-002</a></strong><div class="small">Travel Co • $420 • 1 attachment</div></div>
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-003" href="Assistant_View_Invoice.html?inv=INV-2025-003">INV-2025-003</a></strong><div class="small">OfficeMax • $210 • 0 attachments</div></div>
+                <div class="event"><strong><a class="inv" data-inv="INV-2025-004" href="Assistant_View_Invoice.html?inv=INV-2025-004">INV-2025-004</a></strong><div class="small">Catering Ltd • $980 • 1 attachment</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="right-panel">
+      <div class="card" id="quickUploadCard" style="margin-bottom:12px">
+        <strong>Quick Upload</strong>
+        <div class="small" style="margin-top:6px">Drag & drop files or click to select</div>
+        <div class="upload-box" id="quickUpload" style="margin-top:10px; position:relative;">
+          Drop files here or click to upload
+          <input type="file" id="quickFileInput" style="opacity:0;position:absolute;top:0;left:0;width:100%;height:100%;cursor:pointer;" multiple />
+        </div>
+        <div id="quickFileNames" style="margin-top:12px; font-size:13px; color:var(--navy);"></div>
+      </div>
+
+      <div class="card" id="uploadStatusCard" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <strong>Upload Status & Progress</strong>
+            <div class="small" style="margin-top:4px">Recent uploads and OCR progress</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="clearUploadList" class="upload-neutral" style="font-weight:600;padding:6px 10px">Clear</button>
+          </div>
+        </div>
+
+        <div id="uploadList" style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+          <div class="upload-item" data-id="u1" style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="display:flex;gap:10px;align-items:center">
+                <div style="width:36px;height:36;border-radius:8px;background:#eef6ff;display:flex;align-items:center;justify-content:center;color:var(--navy);font-weight:700">PDF</div>
+                <div>
+                  <div style="font-weight:700;color:var(--navy)">invoice_oct_001.pdf</div>
+                  <div class="small-muted" style="margin-top:4px">Uploading • 1.2 MB</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div class="small-muted" id="status-u1">Uploading</div>
+                <button class="action-btn" data-action="cancel" data-id="u1">Cancel</button>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="flex:1;background:#f1f5f9;border-radius:8px;height:10px;overflow:hidden">
+                <div class="progress-bar" id="progress-u1" style="height:100%;width:0%;background:linear-gradient(90deg,var(--blue),#6ea8ff)"></div>
+              </div>
+              <div style="width:56px;text-align:right;font-weight:700" id="percent-u1">0%</div>
+            </div>
+          </div>
+
+          <div class="upload-item" data-id="u2" style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="display:flex;gap:10px;align-items:center">
+                <div style="width:36px;height:36;border-radius:8px;background:#fff7ed;display:flex;align-items:center;justify-content:center;color:#9a5800;font-weight:700">IMG</div>
+                <div>
+                  <div style="font-weight:700;color:var(--navy)">receipt_sep_22.jpg</div>
+                  <div class="small-muted" style="margin-top:4px">OCR processing • 0.4 MB</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div class="small-muted" id="status-u2">Queued</div>
+                <button class="action-btn" data-action="cancel" data-id="u2">Cancel</button>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="flex:1;background:#f1f5f9;border-radius:8px;height:10px;overflow:hidden">
+                <div class="progress-bar" id="progress-u2" style="height:100%;width:0%;background:linear-gradient(90deg,#f59e0b,#ffd08a)"></div>
+              </div>
+              <div style="width:56px;text-align:right;font-weight:700" id="percent-u2">0%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <strong>Recent Activity</strong>
+        <div class="small" style="margin-top:8px">Latest system events and actions</div>
+        <div style="margin-top:10px">
+          <div class="small" style="margin-bottom:8px"><strong><a class="inv" data-inv="INV-2025-002" href="Assistant_View_Invoice.html?inv=INV-2025-002">INV-2025-002</a></strong> submitted by HR Assistant • 2 hours ago</div>
+          <div class="small" style="margin-bottom:8px"><strong><a class="inv" data-inv="INV-2025-001" href="Assistant_View_Invoice.html?inv=INV-2025-001">INV-2025-001</a></strong> edited by HR Assistant • 1 hour ago</div>
+          <div class="small" style="margin-bottom:8px"><strong><a class="inv" data-inv="INV-2025-003" href="Assistant_View_Invoice.html?inv=INV-2025-003">INV-2025-003</a></strong> approved by Director • 3 days ago</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script>
+  // Dropdown toggles
+  const uploadBtn = document.getElementById('uploadBtn'), uploadMenu = document.getElementById('uploadMenu');
+  const notifBtn = document.getElementById('notifBtn'), notifMenu = document.getElementById('notifMenu');
+  const userBtn = document.getElementById('userBtn'), userMenu = document.getElementById('userMenu');
+
+  function closeAll(){
+    if(uploadMenu) uploadMenu.style.display='none';
+    if(notifMenu) notifMenu.style.display='none';
+    if(userMenu) userMenu.style.display='none';
+    if(uploadBtn) uploadBtn.setAttribute('aria-expanded','false');
+    if(notifBtn) notifBtn.setAttribute('aria-expanded','false');
+    if(userBtn) userBtn.setAttribute('aria-expanded','false');
+  }
+
+  if(uploadBtn) uploadBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const open = uploadMenu.style.display==='block'; closeAll(); uploadMenu.style.display = open ? 'none' : 'block'; uploadBtn.setAttribute('aria-expanded', String(!open)); });
+  if(notifBtn) notifBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const open = notifMenu.style.display==='block'; closeAll(); notifMenu.style.display = open ? 'none' : 'block'; notifBtn.setAttribute('aria-expanded', String(!open)); });
+  if(userBtn) userBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const open = userMenu.style.display==='block'; closeAll(); userMenu.style.display = open ? 'none' : 'block'; userBtn.setAttribute('aria-expanded', String(!open)); });
+
+  document.getElementById('signOutBtn').addEventListener('click', ()=>{ closeAll(); alert('Signed out (demo).'); });
+
+  // Upload menu actions (scanUpload etc.)
+  if(uploadMenu){
+    uploadMenu.addEventListener('click', e => {
+      const action = e.target.getAttribute('data-action');
+      if(!action) return;
+      closeAll();
+      if(action === 'uploadInvoice') {
+        alert('Open Upload New Invoice / Receipt modal (demo).');
+      } else if(action === 'scanUpload') {
+        alert('Open Scan & Upload flow (demo). This would launch the scanner or scanning workflow.');
+      } else if(action === 'bulkUpload') {
+        alert('Open Bulk Upload flow (demo).');
+      }
+    });
+  }
+
+  // pending count link -- only set aria attributes, let browser handle navigation
+  const pendingNumLink = document.getElementById('pendingNumLink');
+  if(pendingNumLink){
+    pendingNumLink.setAttribute('role','button');
+    pendingNumLink.setAttribute('aria-label','View 8 pending assistant invoices');
+  }
+
+  // clickable invoices — only close menus, let browser handle navigation!
+  document.querySelectorAll('a.inv').forEach(el=>{
+    el.addEventListener('click', e=>{
+      closeAll();
+    });
+  });
+
+  // Notifications: badge and mark all read
+  const notifBadge = document.getElementById('notifBadge'), markAllBtn = document.getElementById('markAllBtn');
+  function updateBadge(){ const unread = Array.from(document.querySelectorAll('.notif-item[data-read="false"]')).length; notifBadge.textContent = unread; notifBadge.style.display = unread === 0 ? 'none' : 'inline-block'; }
+  updateBadge();
+  if(markAllBtn) markAllBtn.addEventListener('click', (e)=>{ e.stopPropagation(); Array.from(document.querySelectorAll('.notif-item')).forEach(n=>n.setAttribute('data-read','true')); updateBadge(); });
+
+  const notifList = document.getElementById('notifList');
+  if(notifList){
+    notifList.addEventListener('click', e=>{
+      const item = e.target.closest('.notif-item'); if(!item) return;
+      item.setAttribute('data-read','true'); updateBadge(); closeAll();
+      const link = item.querySelector('a.inv'); if(link && link.getAttribute('href')) { window.location.href = link.getAttribute('href'); } else if(link) { window.location.href = 'Assistant_View_Invoice.html?inv=' + encodeURIComponent(link.getAttribute('data-inv')); } else { alert('Open notification detail (demo).'); }
+    });
+  }
+
+  // Quick upload area (real file picker)
+  const quickUpload = document.getElementById('quickUpload');
+  const quickFileInput = document.getElementById('quickFileInput');
+  const quickFileNames = document.getElementById('quickFileNames');
+
+  if (quickUpload && quickFileInput && quickFileNames) {
+    quickFileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) {
+        quickFileNames.textContent = "";
+        return;
+      }
+      quickFileNames.innerHTML = files.map(f => `<div>${f.name}</div>`).join('');
+      // Here you can add actual upload logic if you want!
+    });
+
+    // Drag & drop support
+    quickUpload.addEventListener('dragover', e => {
+      e.preventDefault();
+      quickUpload.style.background = "rgba(11,92,255,0.09)";
+    });
+    quickUpload.addEventListener('dragleave', e => {
+      e.preventDefault();
+      quickUpload.style.background = "";
+    });
+    quickUpload.addEventListener('drop', e => {
+      e.preventDefault();
+      quickUpload.style.background = "";
+      if (e.dataTransfer.files && e.dataTransfer.files.length) {
+        quickFileInput.files = e.dataTransfer.files;
+        const event = new Event('change');
+        quickFileInput.dispatchEvent(event);
+      }
+    });
+  }
+
+  // Upload Status & Progress simulation script — with Delete button support
+  (function(){
+    const items = [
+      { id: 'u1', name: 'invoice_oct_001.pdf', sizeMB: 1.2 },
+      { id: 'u2', name: 'receipt_sep_22.jpg', sizeMB: 0.4 }
+    ];
+    const progressState = {};
+    items.forEach((it, i) => {
+      progressState[it.id] = { pct: 0, stage: i === 0 ? 'uploading' : 'queued' };
+      const statusEl = document.getElementById('status-' + it.id);
+      if(statusEl) statusEl.textContent = progressState[it.id].stage.charAt(0).toUpperCase() + progressState[it.id].stage.slice(1);
+    });
+
+    function startSimulation(id){
+      const interval = setInterval(()=> {
+        const st = progressState[id];
+        if(!st) { clearInterval(interval); return; }
+        if(st.stage === 'queued') {
+          st.pct += 1;
+          if(st.pct >= 5) st.stage = 'uploading';
+        } else if(st.stage === 'uploading') {
+          st.pct += 6 + Math.random() * 4;
+          if(st.pct >= 90) { st.pct = 90; st.stage = 'ocr'; }
+        } else if(st.stage === 'ocr') {
+          st.pct += 3 + Math.random() * 4;
+          if(st.pct >= 100) { st.pct = 100; st.stage = 'done'; }
+        } else if(st.stage === 'done') {
+          clearInterval(interval);
+        }
+        updateUI(id, st.pct, st.stage);
+      }, 400);
+    }
+
+    function updateUI(id, pct, stage){
+      const progressEl = document.getElementById('progress-' + id);
+      const percentEl = document.getElementById('percent-' + id);
+      const statusEl = document.getElementById('status-' + id);
+      if(progressEl) progressEl.style.width = Math.min(100, Math.round(pct)) + '%';
+      if(percentEl) percentEl.textContent = Math.min(100, Math.round(pct)) + '%';
+      if(statusEl) {
+        const label = stage === 'queued' ? 'Queued' : stage === 'uploading' ? 'Uploading' : stage === 'ocr' ? 'OCR processing' : stage === 'done' ? 'Complete' : stage === 'cancelled' ? 'Cancelled' : '';
+        statusEl.textContent = label;
+      }
+      // when done: replace the Cancel button with an "Open" and add a "Delete" button next to it
+      if(stage === 'done'){
+        const item = document.querySelector(`.upload-item[data-id="${id}"]`);
+        if(item){
+          // find existing cancel/open button container and replace
+          const rightControls = item.querySelector('div > div:last-child'); // top-level right controls container
+          // Remove any existing action buttons
+          const existingBtns = item.querySelectorAll('.action-btn');
+          existingBtns.forEach(b=>{
+            // keep status element intact; remove action buttons to re-create
+            const parent = b.parentElement;
+            if(parent) parent.removeChild(b);
+          });
+          // create Open button
+          const openBtn = document.createElement('button'); openBtn.className = 'action-btn'; openBtn.dataset.action = 'open'; openBtn.dataset.id = id; openBtn.textContent = 'Open';
+          // create Delete button
+          const delBtn = document.createElement('button'); delBtn.className = 'action-btn'; delBtn.dataset.action = 'delete'; delBtn.dataset.id = id; delBtn.style.background = '#fff'; delBtn.style.border = '1px solid #e6eef6'; delBtn.textContent = 'Delete';
+          // append to the control area (if found) or create control area
+          const controlArea = item.querySelector('.upload-controls') || (() => {
+            const c = document.createElement('div'); c.className = 'upload-controls'; c.style.display = 'flex'; c.style.gap = '8px'; c.style.alignItems = 'center';
+            // remove old control container and insert new
+            const top = item.querySelector('div[style*="justify-content:space-between"]');
+            if(top){
+              const old = top.querySelector('div:last-child');
+              if(old) old.parentElement.replaceChild(c, old);
+            }
+            return c;
+          })();
+          controlArea.appendChild(openBtn);
+          controlArea.appendChild(delBtn);
+        }
+      }
+    }
+
+    setTimeout(()=> startSimulation('u1'), 200);
+    setTimeout(()=> startSimulation('u2'), 1200);
+
+    document.getElementById('uploadList').addEventListener('click', e => {
+      const btn = e.target.closest('.action-btn');
+      if(!btn) return;
+      const action = btn.dataset.action || btn.getAttribute('data-action');
+      const id = btn.dataset.id || btn.getAttribute('data-id');
+      if(action === 'cancel'){
+        progressState[id].stage = 'cancelled';
+        updateUI(id, 0, 'cancelled');
+        btn.textContent = 'Cancelled';
+        btn.disabled = true;
+        const statusEl = document.getElementById('status-' + id);
+        if(statusEl) statusEl.textContent = 'Cancelled';
+      } else if(action === 'open'){
+        window.location.href = 'Assistant_View_Invoice.html';
+      } else if(action === 'delete'){
+        // Remove upload item from DOM
+        const item = document.querySelector(`.upload-item[data-id="${id}"]`);
+        if(item){
+          item.remove();
+        }
+      }
+    });
+
+    const clearBtn = document.getElementById('clearUploadList');
+    if(clearBtn) clearBtn.addEventListener('click', ()=>{
+      const list = document.getElementById('uploadList');
+      if(list) list.innerHTML = '<div class="small-muted" style="padding:12px">No recent uploads</div>';
+    });
+  })();
+
+  // Close on outside click or Escape
+  window.addEventListener('click', ()=> closeAll());
+  window.addEventListener('keydown', (e)=> { if(e.key === 'Escape') closeAll(); });
+  // Upload Dropdown File Pickers
+  function showFileNames(input, label) {
+    const files = Array.from(input.files);
+    const result = document.getElementById('uploadResult');
+    if (files.length === 0) {
+      result.textContent = "";
+      return;
+    }
+    result.textContent = label + ': ' + files.map(f => f.name).join(', ');
+  }
+
+  const uploadInvoiceInput = document.getElementById('uploadInvoiceInput');
+  if (uploadInvoiceInput) {
+    uploadInvoiceInput.addEventListener('change', function () {
+      showFileNames(uploadInvoiceInput, 'Upload New Invoice / Receipt');
+    });
+  }
+
+  const scanUploadInput = document.getElementById('scanUploadInput');
+  if (scanUploadInput) {
+    scanUploadInput.addEventListener('change', function () {
+      showFileNames(scanUploadInput, 'Scan & Upload');
+    });
+  }
+
+  const bulkUploadInput = document.getElementById('bulkUploadInput');
+  if (bulkUploadInput) {
+    bulkUploadInput.addEventListener('change', function () {
+      showFileNames(bulkUploadInput, 'Bulk Upload');
+    });
+  }
+</script>
+</body>
+</html>
+
+
+
