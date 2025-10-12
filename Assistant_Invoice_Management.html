@@ -766,31 +766,32 @@ renderInbox();
 </script>
 <script>
 document.addEventListener('click', function(e) {
-  if(e.target.classList.contains('open')) {
+  if (e.target.classList.contains('open')) {
     // Get the invoice ID from the button
     const invId = e.target.dataset.id;
     // Find the row of the button
     const row = e.target.closest('tr');
-    // Get the status text from the row (adjust selector if needed)
-    const statusCell = row.querySelector('[data-status]');
-    let status = statusCell ? statusCell.getAttribute('data-status') : null;
+    // Get the status cell text
+    const statusCell = row.querySelector('td:nth-child(5)');
+    let statusText = statusCell ? statusCell.textContent.trim() : '';
 
-    // If status is not found, you may need to get it from another cell or data attribute
-    // For demonstration, let's assume status is stored as a data-status attribute
-
+    // Map display status to internal status
     let targetPage = '';
-    if (status === 'pending_review' || status === 'pending_approval') {
+    if (
+      statusText === 'Pending Review' ||
+      statusText === 'Pending Approval'
+    ) {
       targetPage = 'Assistant_View_Invoice.html?id=' + invId;
     } else if (
-      status === 'approved_electronic' ||
-      status === 'approved_physical' ||
-      status === 'rejected'
+      statusText === 'Approved (Electronic)' ||
+      statusText === 'Approved (Physical)' ||
+      statusText === 'Rejected'
     ) {
       targetPage = 'Assistant_View_Approved_Invoice.html?id=' + invId;
-    } else if (status === 'changes_requested') {
+    } else if (statusText === 'Changes Requested') {
       targetPage = 'Assistant_View_Changed_Invoice.html?id=' + invId;
     } else {
-      alert('Status not recognized');
+      alert('Status not recognized: ' + statusText);
       return;
     }
     window.location.href = targetPage;
@@ -801,3 +802,4 @@ document.addEventListener('click', function(e) {
 </html>
 
 ```
+
