@@ -767,28 +767,21 @@ renderInbox();
 <script>
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('open')) {
-    // Get the invoice ID from the button
     const invId = e.target.dataset.id;
-    // Find the row of the button
     const row = e.target.closest('tr');
-    // Get the status cell text
     const statusCell = row.querySelector('td:nth-child(5)');
-    let statusText = statusCell ? statusCell.textContent.trim() : '';
+    let statusText = statusCell ? statusCell.textContent.trim().toLowerCase() : '';
 
-    // Map display status to internal status
     let targetPage = '';
-    if (
-      statusText === 'Pending Review' ||
-      statusText === 'Pending Approval'
-    ) {
+    if (statusText.includes('pending review') || statusText.includes('pending approval')) {
       targetPage = 'Assistant_View_Invoice.html?id=' + invId;
     } else if (
-      statusText === 'Approved (Electronic)' ||
-      statusText === 'Approved (Physical)' ||
-      statusText === 'Rejected'
+      statusText.includes('approved (electronic)') ||
+      statusText.includes('approved (physical)') ||
+      statusText.includes('rejected')
     ) {
       targetPage = 'Assistant_View_Approved_Invoice.html?id=' + invId;
-    } else if (statusText === 'Changes Requested') {
+    } else if (statusText.includes('changes requested')) {
       targetPage = 'Assistant_View_Changed_Invoice.html?id=' + invId;
     } else {
       alert('Status not recognized: ' + statusText);
@@ -798,8 +791,10 @@ document.addEventListener('click', function(e) {
   }
 });
 </script>
+</script>
 </body>
 </html>
 
 ```
+
 
