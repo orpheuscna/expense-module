@@ -12,7 +12,7 @@
   }
   *{box-sizing:border-box}
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
-  .panel {width:100vw; height:100vh; max-width:1600px; margin:0 auto; background:#fff; display:grid; grid-template-columns:40% 60%; overflow:hidden; box-shadow:0 24px 60px rgba(2,6,23,0.08)}
+  .panel {width:100%; height:100vh; max-width:1600px; margin:0 auto; background:#fff; display:grid; grid-template-columns:40% 60%; overflow:visible; box-shadow:0 24px 60px rgba(2,6,23,0.08)}
   .panel .viewer{background:#f8fafc; display:flex; flex-direction:column}
   .panel header{padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center}
   .small{font-size:13px;color:var(--muted)}
@@ -55,8 +55,15 @@
   .signature-area{margin-top:16px;border-top:1px dashed #e6eef6;padding-top:10px;display:flex;justify-content:space-between;align-items:center}
 
   @media(max-width:1000px){ .panel{grid-template-columns:1fr} .panel .viewer{height:36vh} .modal{width:92%} }
-  #docViewer { display: none !important; }
-#viewTableBody, #viewTotals, #viewAttached { display: none !important; }
+
+  /* viewer content flex-scroll fix (ensures inner content can scroll and reveal Notes/footer) */
+  .viewer > .viewer-body,
+  .viewer .viewer-content,
+  .viewer > div[style*="padding:12px"] {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
 </style>
 </head>
 <body>
@@ -74,7 +81,7 @@
       </div>
     </header>
 
-<!-- PDF Preview block retained -->
+<!-- PDF Preview Demo (Directly in Left Panel) -->
 <div style="margin:24px 0;">
   <div style="font-weight:700; margin-bottom:8px;">PDF Preview</div>
   <div style="margin-bottom:8px;">
@@ -97,12 +104,47 @@
   }
 </script>
 
-    <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; height:calc(100% - 64px)">
-      <!-- Invoice details removed as requested -->
-      <div style="margin-top:18px;font-size:13px;color:var(--muted)" id="viewAttached">Attached: </div>
+    <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; flex:1 1 auto; min-height:0;" class="viewer-body">
+      <div id="docViewer" class="sample-invoice" aria-label="Sample invoice">
+        <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Invoice</div>
 
-      <div style="display:flex;gap:8px">
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <div><strong>Invoice</strong> <span id="viewInvId">INV-xxxx</span></div>
+          <div><strong>Date</strong> <span id="viewDate">YYYY-MM-DD</span></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:8px">
+          <div><strong>Bill To</strong><br/><span id="viewBillTo">Company</span></div>
+          <div><strong>Due</strong> <span id="viewDue">YYYY-MM-DD</span></div>
+        </div>
+
+        <div style="margin-top:12px;font-weight:700">Items</div>
+
+        <table style="width:100%;border-collapse:collapse;margin-top:8px">
+          <thead>
+            <tr style="background:#fbfdff">
+              <th style="text-align:left;padding:8px">Description</th>
+              <th style="padding:8px;width:80px">Qty</th>
+              <th style="padding:8px;width:120px">Unit</th>
+              <th style="padding:8px;width:120px">Tax</th>
+              <th style="padding:8px;width:140px">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="viewTableBody"></tbody>
+        </table>
+
+        <div class="totals-block" style="margin-top:12px">
+          <div class="totals-inner" id="viewTotals">
+            <div style="display:flex;justify-content:space-between"><div class="small-muted">Subtotal</div><div style="font-weight:800" id="viewSubtotal">$0.00</div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px"><div class="small-muted">Total Tax</div><div style="font-weight:800" id="viewTotalTax">$0.00</div></div>
+            <div style="border-top:1px solid #eef4ff;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:900">Grand Total</div><div style="font-weight:900" id="viewGrandTotal">$0.00</div></div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;font-size:13px;color:var(--muted)" id="viewAttached">Attached: </div>
       </div>
+
+      <!-- removed duplicate control block under preview (kept main controls in right panel) -->
     </div>
   </div>
 
@@ -119,7 +161,7 @@
       </div>
     </div>
 
-    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-height:0;overflow:auto">
       <div class="fld">
         <label for="vendorFld">Vendor</label>
         <div style="display:flex;gap:8px;align-items:center">
@@ -346,8 +388,20 @@
     document.getElementById('vendorFld').value = data.vendor;
     document.getElementById('dateFld').value = data.date;
     document.getElementById('totalFld').value = data.total;
-    document.getElementById('viewAttached').textContent = 'Attached: ' + ((data.attached || []).map(a=>a.name).join(', ') || '—');
+    document.getElementById('viewInvId').textContent = data.id;
+    document.getElementById('viewDate').textContent = data.date;
+    document.getElementById('viewDue').textContent = data.due || '—';
+    document.getElementById('viewVendor').textContent = data.vendor + ' — Invoice';
+    document.getElementById('viewBillTo').innerText = data.billTo || '';
     document.getElementById('notesFld').value = data.notes || '';
+
+    const vtb = document.getElementById('viewTableBody'); vtb.innerHTML = '';
+    data.lines.forEach(l=>{
+      const amt = (l.qty * l.unit) + (l.tax || 0);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="padding:8px">${escapeHtml(l.desc)}</td><td style="padding:8px">${l.qty}</td><td style="padding:8px">$${l.unit.toFixed(2)}</td><td style="padding:8px">$${(l.tax||0).toFixed(2)}</td><td style="padding:8px">$${amt.toFixed(2)}</td>`;
+      vtb.appendChild(tr);
+    });
 
     const tbody = document.querySelector('#lineItemsTable tbody'); tbody.innerHTML = '';
     data.lines.forEach(l=>{
@@ -367,7 +421,7 @@
       appendSupportItem(supportList, id, info);
     });
 
-    computeTotals();
+    updateViewAttached(); computeTotals();
   }
 
   function computeTotals(){
@@ -384,6 +438,9 @@
     document.getElementById('subtotalDisplay').textContent = fmtMoney(subtotal);
     document.getElementById('totalTaxDisplay').textContent = fmtMoney(totalTax);
     document.getElementById('grandTotalDisplay').textContent = fmtMoney(grand);
+    document.getElementById('viewSubtotal').textContent = fmtMoney(subtotal);
+    document.getElementById('viewTotalTax').textContent = fmtMoney(totalTax);
+    document.getElementById('viewGrandTotal').textContent = fmtMoney(grand);
     return { subtotal, totalTax, grand };
   }
 
@@ -503,8 +560,8 @@
   }
 
   // utility bindings
-  document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='dashboard1.html');
-  document.getElementById('closePanelFooter')?.addEventListener('click', ()=> window.location.href='dashboard1.html');
+  document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='Assistant_Invoice_Management.html');
+  document.getElementById('closePanelFooter')?.addEventListener('click', ()=> window.location.href='Assistant_Invoice_Management.html');
   document.getElementById('addLine').addEventListener('click', ()=>{
     const tbody=document.querySelector('#lineItemsTable tbody');
     const idx=tbody.querySelectorAll('tr').length+1;
@@ -525,13 +582,20 @@
     computeTotals(); alert('Line totals recalculated (demo).');
   });
 
-  document.getElementById('saveDraft').addEventListener('click', ()=> alert('Draft saved (demo).'));
-  document.getElementById('submitToDirector').addEventListener('click', ()=> { alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; });
+  document.getElementById('saveDraft').addEventListener('click', ()=> {
+    alert('Draft saved (demo).');
+    window.location.href = 'Assistant_Invoice_Management.html';
+  });
+  document.getElementById('submitToDirector').addEventListener('click', ()=> {
+    alert('Submitted to Director (demo).');
+    document.getElementById('panelStatus').textContent='Submitted';
+    window.location.href = 'Assistant_Invoice_Management.html';
+  });
   document.getElementById('submitPanel').addEventListener('click', ()=> {
     const { grand } = computeTotals();
     const invoiceTotal = parseMoney(document.getElementById('totalFld').value);
     if(Math.abs(invoiceTotal - grand) > 0.005){ if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return; }
-    alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; window.location.href='dashboard1.html';
+    alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; window.location.href='Assistant_Invoice_Management.html';
   });
 
   // init: register initial attachments and populate
@@ -550,5 +614,3 @@
 </script>
 </body>
 </html>
-
-

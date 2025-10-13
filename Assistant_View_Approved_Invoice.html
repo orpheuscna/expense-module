@@ -59,6 +59,9 @@
     .inline-tag-picker button{padding:6px 10px;border-radius:6px}
 
     @media(max-width:1000px){ .panel{grid-template-columns:1fr} .panel .viewer{height:36vh} .modal{width:92%} }
+
+    /* viewer content flex-scroll fix */
+    .viewer > div[style*="padding:12px"] { flex: 1 1 auto; min-height: 0; overflow: auto; }
   </style>
 </head>
 <body>
@@ -76,7 +79,7 @@
       </div>
     </header>
 
-    <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; height:calc(100% - 64px)">
+    <div style="padding:12px; display:flex; flex-direction:column; gap:10px;" class="viewer-body">
       <div id="docViewer" class="sample-invoice" aria-label="Sample invoice">
         <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Invoice</div>
 
@@ -136,7 +139,7 @@
       </div>
     </div>
 
-    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-height:0;overflow:auto">
       <div class="fld">
         <label for="vendorFld">Vendor</label>
         <div style="display:flex;gap:8px;align-items:center">
@@ -267,6 +270,83 @@
     </div>
   </div>
 </div>
+<script>
+// Universal final patch: attach handlers after DOM is ready
+document.addEventListener('DOMContentLoaded', function(){
+  // Safe getters
+  const goBack = () => { window.location.href = 'Assistant_Invoice_Management.html'; };
+
+  // Close buttons
+  const closeBtn = document.getElementById('closeBtn');
+  if (closeBtn) closeBtn.addEventListener('click', goBack);
+  const closePanelFooter = document.getElementById('closePanelFooter');
+  if (closePanelFooter) closePanelFooter.addEventListener('click', goBack);
+
+  // Save / Submit / Draft buttons
+  const saveDraft = document.getElementById('saveDraft');
+  if (saveDraft) saveDraft.addEventListener('click', function(){ alert('Draft saved (demo).'); goBack(); });
+
+  const submitToDirector = document.getElementById('submitToDirector');
+  if (submitToDirector) submitToDirector.addEventListener('click', function(){
+    alert('Submitted to Director (demo).');
+    const status = document.getElementById('panelStatus'); if(status) status.textContent='Submitted';
+    goBack();
+  });
+
+  const submitPanel = document.getElementById('submitPanel');
+  if (submitPanel) submitPanel.addEventListener('click', function(){
+    // keep existing checks if present, then redirect
+    try {
+      if (typeof computeTotals === 'function' && typeof parseMoney === 'function') {
+        const { grand } = computeTotals();
+        const invoiceTotal = parseMoney(document.getElementById('totalFld')?.value || '');
+        if (Math.abs((invoiceTotal||0) - (grand||0)) > 0.005) {
+          if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return;
+        }
+      }
+    } catch(e){ /* ignore and continue */ }
+    alert('Submitted to Director (demo).');
+    const status = document.getElementById('panelStatus'); if(status) status.textContent='Submitted';
+    goBack();
+  });
+
+  // Mark as Completed (buttons) - immediate redirect after marking
+  const markCompletedBtn = document.getElementById('markCompletedBtn');
+  if (markCompletedBtn) markCompletedBtn.addEventListener('click', function(){
+    // If your file uses showCompletionChooser / inline picker, it will redirect after apply.
+    // This fallback marks completed immediately and returns.
+    alert('Marked as completed (demo).');
+    goBack();
+  });
+  const markCompletedFooter = document.getElementById('markCompletedFooter');
+  if (markCompletedFooter) markCompletedFooter.addEventListener('click', function(){
+    alert('Marked as completed (demo).');
+    goBack();
+  });
+
+  // Resubmit / Resubmit button (changes requested)
+  const resubmitBtn = document.querySelector('.resubmit-row');
+  if (resubmitBtn) resubmitBtn.addEventListener('click', function(){ alert('Resubmitted (demo).'); goBack(); });
+
+  // If your page uses an inline tag picker with an Apply button created dynamically,
+  // patch the global function that creates it so Apply also redirects.
+  if (typeof showInlineTagPicker === 'function') {
+    const orig = showInlineTagPicker;
+    window.showInlineTagPicker = function(anchorBtn, invId) {
+      orig(anchorBtn, invId);
+      // find the dynamically created Apply button and hook redirect when clicked
+      setTimeout(() => {
+        const parent = anchorBtn.parentElement;
+        if (!parent) return;
+        const applyBtn = parent.querySelector('.tag-picker .btn.btn-primary, .inline-tag-picker .apply-tag, .inline-tag-picker .btn.btn-primary');
+        if (applyBtn) {
+          applyBtn.addEventListener('click', function(){ setTimeout(goBack, 120); }, { once: true });
+        }
+      }, 60);
+    };
+  }
+});
+</script>
 
 <script>
   const INVOICE_DB = {
@@ -288,392 +368,5 @@
         { name: 'PaymentOrder_INV-2025-001.pdf', type: 'Payment Order' }
       ],
       notes: 'Missing delivery slip',
-      // status examples: 'approved_electronic' or 'approved_physical' or others
       status: 'approved_electronic',
-      directorAction: { type: 'approved_electronic', note: 'Approved', time: '2025-10-26' }
-    }
-  };
-
-  const SUPPORT_REGISTRY = {}; // id -> {name,type,size,contentHtml,signed}
-  let CURRENT_INVOICE = null;
-
-  function getQueryParam(name){ return (new URLSearchParams(window.location.search)).get(name); }
-  function escapeHtml(s){ return String(s).replace(/[&<>"'`=\/]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]); }
-  function parseMoney(v){ if(typeof v!=='string') v = String(v||''); v = v.replace(/[^\d.\-]/g,''); const n=parseFloat(v); return Number.isFinite(n)?n:0; }
-  function fmtMoney(n){ return '$'+Number(n||0).toFixed(2); }
-
-  function sampleContentFor(name, type){
-    if(type==='Payment Request' || name.toLowerCase().includes('paymentrequest')){
-      return `
-        <div class="pr">
-          <div class="header">
-            <div><div style="font-weight:900;font-size:16px">Payment Request</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div></div>
-            <div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Date: 2025-10-26</div></div>
-          </div>
-          <div class="box"><div><strong>To:</strong> Finance Department</div><div style="margin-top:6px"><strong>Invoice ref:</strong> INV-2025-001</div><div style="margin-top:6px"><strong>Amount requested:</strong> <span style="font-weight:800">$330.00</span></div></div>
-          <div class="signature-area"><div><div style="font-size:13px;color:var(--muted)">Assistant note</div><div style="margin-top:6px;color:var(--muted)">Prepared for approval</div></div><div><div style="font-size:13px;color:var(--muted)">Director action</div><div style="margin-top:6px;color:var(--muted)">Sign electronically or mark physical</div></div></div>
-        </div>`;
-    }
-    if(type==='Payment Order' || name.toLowerCase().includes('paymentorder')){
-      return `
-        <div class="po">
-          <div class="header">
-            <div><div style="font-weight:900;font-size:16px">Payment Order</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div><div class="small-muted" style="margin-top:6px">Send to: TRG Head Office</div></div>
-            <div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Date: 2025-10-26</div></div>
-          </div>
-          <div class="box"><div><strong>Order reference:</strong> INV-2025-001</div><div style="margin-top:6px"><strong>Amount:</strong> <span style="font-weight:800">$330.00</span></div><div style="margin-top:8px;color:#92400e">Note: For TRG to process payment.</div></div>
-          <div class="signature-area"><div><div style="font-size:13px;color:var(--muted)">Assistant note</div><div style="margin-top:6px;color:var(--muted)">Prepared for TRG</div></div><div><div style="font-size:13px;color:var(--muted)">Director authorization</div><div style="margin-top:6px;color:var(--muted)">Sign electronically or mark physical</div></div></div>
-        </div>`;
-    }
-    if(type==='Other documents' || name.toLowerCase().includes('contract')){
-      return `
-        <div class="contract">
-          <div class="c-header">
-            <div><div style="font-weight:900;font-size:16px">Service Contract</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div></div>
-            <div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Effective date: 2025-09-01</div></div>
-          </div>
-          <div><strong>Parties</strong></div>
-          <div class="clause">This Contract is between ACME Supplies Co. ("Supplier") and Company XYZ ("Client") for the supply of goods.</div>
-          <div style="margin-top:10px"><strong>Payment</strong></div>
-          <div class="clause">Payments due within 30 days of invoice.</div>
-        </div>`;
-    }
-    return `<div><strong>${escapeHtml(name)}</strong><div style="margin-top:8px;color:var(--muted)">Preview not available</div></div>`;
-  }
-
-  function registerSupport(id, info){ SUPPORT_REGISTRY[id] = info; }
-  function appendSupportItem(container, id, info, readonlyRemove){
-    const item = document.createElement('div');
-    item.className = 'support-item';
-    item.dataset.fileid = id;
-    item.dataset.filetype = info.type || '';
-    const fnameClass = info.name && info.name.startsWith('Contract') ? 'filename contract' : 'filename';
-    const signedLabel = info.signed ? ` • signed (${info.signed})` : '';
-    item.innerHTML =
-      `<div class="meta"><div class="${fnameClass}">${escapeHtml(info.name)}</div><div class="tag small">${escapeHtml(info.type||'Document')} • ${Math.round((info.size||0)/1024)} KB${signedLabel}</div></div>
-       <div style="display:flex;gap:8px">
-         <button class="action-btn view-support" data-fileid="${id}">View</button>
-         <button class="action-btn download-support" data-fileid="${id}">Download</button>
-         ${readonlyRemove ? '' : `<button class="action-btn remove-support" data-fileid="${id}">Remove</button>`}
-       </div>`;
-    container.appendChild(item);
-  }
-
-  function loadInvoiceById(invId){ return INVOICE_DB[invId] || INVOICE_DB['INV-2025-001']; }
-
-  function populatePage(data){
-    CURRENT_INVOICE = data;
-    document.getElementById('panelTitle').textContent = data.id;
-    document.getElementById('detailInvId').textContent = data.id;
-    document.getElementById('detailSubtitle').textContent = data.subtitle;
-    document.getElementById('vendorFld').value = data.vendor;
-    document.getElementById('dateFld').value = data.date;
-    document.getElementById('totalFld').value = data.total;
-    document.getElementById('viewInvId').textContent = data.id;
-    document.getElementById('viewDate').textContent = data.date;
-    document.getElementById('viewDue').textContent = data.due || '—';
-    document.getElementById('viewVendor').textContent = data.vendor + ' — Invoice';
-    document.getElementById('viewBillTo').innerText = data.billTo || '';
-    document.getElementById('notesFld').value = data.notes || '';
-
-    const vtb = document.getElementById('viewTableBody'); vtb.innerHTML = '';
-    data.lines.forEach(l=>{
-      const amt = (l.qty * l.unit) + (l.tax || 0);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td style="padding:8px">${escapeHtml(l.desc)}</td><td style="padding:8px">${l.qty}</td><td style="padding:8px">$${l.unit.toFixed(2)}</td><td style="padding:8px">$${(l.tax||0).toFixed(2)}</td><td style="padding:8px">$${amt.toFixed(2)}</td>`;
-      vtb.appendChild(tr);
-    });
-
-    const tbody = document.querySelector('#lineItemsTable tbody'); tbody.innerHTML = '';
-    data.lines.forEach(l=>{
-      const amt = (l.qty * l.unit) + (l.tax || 0);
-      const tr = document.createElement('tr'); tr.dataset.line='x';
-      tr.innerHTML = `<td><input value="${escapeHtml(l.desc)}"></td><td><input value="${l.qty}"></td><td><input value="$${l.unit.toFixed(2)}"></td><td><input value="$${(l.tax||0).toFixed(2)}"></td><td><input value="$${amt.toFixed(2)}"></td>`;
-      tbody.appendChild(tr);
-    });
-
-    // attachments handling: clear and register initial attachments
-    const supportList = document.getElementById('supportList'); supportList.innerHTML = '';
-    Object.keys(SUPPORT_REGISTRY).forEach(k=>delete SUPPORT_REGISTRY[k]);
-
-    const approvedElectronic = data.directorAction && data.directorAction.type === 'approved_electronic';
-    const approvedPhysical = data.directorAction && data.directorAction.type === 'approved_physical';
-    const isApproved = (data.status === 'approved_electronic' || data.status === 'approved_physical');
-
-    (data.attached || []).forEach((f, idx)=>{
-      const id = 'init-' + idx;
-      const info = { name: f.name, type: f.type, size: 2048, contentHtml: sampleContentFor(f.name, f.type) };
-      if(approvedElectronic && (/paymentorder|paymentrequest/i).test(f.name)){
-        info.signed = 'electronic';
-      }
-      registerSupport(id, info);
-      const readonlyRemove = !!info.signed; // cannot remove electronically signed docs
-      appendSupportItem(supportList, id, info, readonlyRemove);
-    });
-
-    updateViewAttached();
-    computeTotals();
-
-    // Make form read-only if invoice is approved
-    if(isApproved){
-      setFormReadOnly(true, approvedPhysical);
-    } else {
-      setFormReadOnly(false, false);
-    }
-  }
-
-  function setFormReadOnly(readonly, approvedPhysical){
-    const inputs = document.querySelectorAll('#vendorFld,#dateFld,#totalFld,#categoryFld,#notesFld,#lineItemsTable input');
-    inputs.forEach(i=> i.disabled = readonly);
-    document.getElementById('addLine').style.display = readonly ? 'none' : '';
-    document.getElementById('autoCalc').style.display = readonly ? 'none' : '';
-    // For approved_physical assistant still can upload signed physical docs; attach handler will add entries (handled elsewhere)
-  }
-
-  function computeTotals(){
-    const rows = document.querySelectorAll('#lineItemsTable tbody tr');
-    let subtotal=0,totalTax=0,grand=0;
-    rows.forEach(r=>{
-      const q=parseMoney(r.cells[1].querySelector('input').value);
-      const up=parseMoney(r.cells[2].querySelector('input').value);
-      const tax=parseMoney(r.cells[3].querySelector('input').value);
-      const lineBeforeTax = q * up;
-      const lineAfterTax = lineBeforeTax + tax;
-      subtotal += lineBeforeTax; totalTax += tax; grand += lineAfterTax;
-    });
-    document.getElementById('subtotalDisplay').textContent = fmtMoney(subtotal);
-    document.getElementById('totalTaxDisplay').textContent = fmtMoney(totalTax);
-    document.getElementById('grandTotalDisplay').textContent = fmtMoney(grand);
-    document.getElementById('viewSubtotal').textContent = fmtMoney(subtotal);
-    document.getElementById('viewTotalTax').textContent = fmtMoney(totalTax);
-    document.getElementById('viewGrandTotal').textContent = fmtMoney(grand);
-    return { subtotal, totalTax, grand };
-  }
-
-  // attach files by selected type (upload)
-  document.getElementById('attachTypeBtn').addEventListener('click', ()=>{
-    const typeSel = document.getElementById('paymentTypeSelect');
-    const filesInput = document.getElementById('paymentUploadSelect');
-    const chosenType = typeSel.value;
-    if(!chosenType){ alert('Please select a type first.'); return; }
-    if(!filesInput.files || filesInput.files.length === 0){ alert('Please choose files to upload.'); return; }
-    const list = document.getElementById('supportList');
-    const approvedPhysical = CURRENT_INVOICE && CURRENT_INVOICE.directorAction && CURRENT_INVOICE.directorAction.type === 'approved_physical';
-    Array.from(filesInput.files).forEach((f,i)=>{
-      let name = f.name;
-      if(chosenType !== 'Other documents' && !name.toLowerCase().endsWith('.pdf')){
-        name = (chosenType === 'Payment Request' ? 'PaymentRequest_' : 'PaymentOrder_') + (CURRENT_INVOICE ? CURRENT_INVOICE.id : 'INV') + '.pdf';
-      }
-      const id = 'up-' + (Date.now() + i);
-      const info = { name, type: chosenType, size: f.size || 2048, contentHtml: sampleContentFor(name, chosenType) };
-      if(approvedPhysical && /signed/i.test(name)) info.signed = 'physical';
-      registerSupport(id, info);
-      const readonlyRemove = !!info.signed;
-      appendSupportItem(list, id, info, readonlyRemove);
-    });
-    filesInput.value = ''; typeSel.value = ''; updateViewAttached();
-  });
-
-  // link existing system document (no upload)
-  document.getElementById('linkDocBtn').addEventListener('click', ()=>{
-    const sel = document.getElementById('linkedDocSelect');
-    const val = sel.value;
-    if(!val){ alert('Choose a document to link.'); return; }
-    const [name, typeRaw] = val.split('|');
-    const type = typeRaw || 'Other documents';
-    const id = 'linked-' + Date.now();
-    const info = { name, type, size: 1024, contentHtml: sampleContentFor(name, type) };
-    if(CURRENT_INVOICE && CURRENT_INVOICE.status === 'approved_electronic' && (/paymentorder|paymentrequest/i).test(name)){
-      info.signed = 'electronic';
-    }
-    registerSupport(id, info);
-    const readonlyRemove = !!info.signed;
-    appendSupportItem(document.getElementById('supportList'), id, info, readonlyRemove);
-    sel.value = ''; updateViewAttached();
-  });
-
-  // support list actions
-  document.getElementById('supportList').addEventListener('click', function(e){
-    const vw = e.target.closest('.view-support');
-    const dl = e.target.closest('.download-support');
-    const rm = e.target.closest('.remove-support');
-    if(vw){
-      const id = vw.dataset.fileid || vw.closest('.support-item').dataset.fileid;
-      openPreviewModal(id);
-    }
-    if(dl){
-      const id = dl.dataset.fileid || dl.closest('.support-item').dataset.fileid;
-      const info = SUPPORT_REGISTRY[id];
-      alert('Download (demo): ' + (info?info.name:id));
-    }
-    if(rm){
-      const el = rm.closest('.support-item');
-      const id = el.dataset.fileid;
-      const info = SUPPORT_REGISTRY[id];
-      if(info && info.signed === 'electronic'){
-        alert('Cannot remove electronically signed document.');
-        return;
-      }
-      if(confirm('Remove this document?')){
-        delete SUPPORT_REGISTRY[id];
-        el.remove();
-        updateViewAttached();
-      }
-    }
-  });
-
-  // preview modal management
-  const modal = document.getElementById('modalPreview');
-  const previewContent = document.getElementById('previewContent');
-  const previewMeta = document.getElementById('previewMeta');
-  let previewCurrentId = null;
-
-  function openPreviewModal(id){
-    const info = SUPPORT_REGISTRY[id];
-    previewCurrentId = id;
-    document.getElementById('previewTitle').textContent = info ? info.name : id;
-    previewContent.innerHTML = info ? info.contentHtml : `<div><strong>${escapeHtml(id)}</strong><div style="margin-top:8px;color:var(--muted)">No preview</div></div>`;
-    previewMeta.textContent = info ? `${info.type} • ${Math.round((info.size||0)/1024)} KB${info.signed ? ' • signed('+info.signed+')' : ''}` : '';
-    document.getElementById('previewDownload').dataset.fileid = id;
-    document.getElementById('previewRemove').dataset.fileid = id;
-    const removeBtn = document.getElementById('previewRemove');
-    if(info && info.signed === 'electronic'){ removeBtn.style.display = 'none'; } else { removeBtn.style.display = ''; }
-    openModal(modal);
-  }
-
-  document.getElementById('previewClose').addEventListener('click', ()=> closeModal(modal));
-  document.getElementById('previewDownload').addEventListener('click', function(){
-    const id = this.dataset.fileid || previewCurrentId; const info = SUPPORT_REGISTRY[id];
-    alert('Download (demo): ' + (info?info.name:id));
-  });
-  document.getElementById('previewRemove').addEventListener('click', function(){
-    const id = this.dataset.fileid || previewCurrentId;
-    const info = SUPPORT_REGISTRY[id];
-    if(info && info.signed === 'electronic'){ alert('Cannot remove electronically signed document.'); return; }
-    if(!confirm('Remove this document?')) return;
-    const el = document.querySelector('.support-item[data-fileid="'+id+'"]');
-    if(el) el.remove();
-    delete SUPPORT_REGISTRY[id];
-    updateViewAttached();
-    closeModal(modal);
-  });
-
-  function openModal(m){ m.style.display='flex'; m.setAttribute('aria-hidden','false'); }
-  function closeModal(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); }
-
-  function updateViewAttached(){
-    const list = document.getElementById('supportList');
-    const names = Array.from(list.querySelectorAll('.support-item .meta > .filename')).map(d => d.textContent.trim());
-    document.getElementById('viewAttached').textContent = 'Attached: ' + (names.length ? names.join(', ') : '—');
-  }
-
-  // utility bindings
-  document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='dashboard1.html');
-  document.getElementById('closePanelFooter')?.addEventListener('click', ()=> window.location.href='dashboard1.html');
-  document.getElementById('addLine').addEventListener('click', ()=>{ 
-    const tbody=document.querySelector('#lineItemsTable tbody');
-    const idx=tbody.querySelectorAll('tr').length+1;
-    const tr=document.createElement('tr'); tr.dataset.line=idx;
-    tr.innerHTML = '<td><input value=""></td><td><input value="1"></td><td><input value="$0.00"></td><td><input value="$0.00"></td><td><input value="$0.00"></td>';
-    tbody.appendChild(tr); computeTotals();
-  });
-
-  document.getElementById('autoCalc').addEventListener('click', ()=> {
-    const rows=document.querySelectorAll('#lineItemsTable tbody tr');
-    rows.forEach(r=>{
-      const q=parseMoney(r.cells[1].querySelector('input').value);
-      const up=parseMoney(r.cells[2].querySelector('input').value);
-      const tax=parseMoney(r.cells[3].querySelector('input').value);
-      const amt=(q*up)+tax;
-      r.cells[4].querySelector('input').value='$'+amt.toFixed(2);
-    });
-    computeTotals(); alert('Line totals recalculated (demo).');
-  });
-
-  // Inline chooser function (added) — only added behavior, nothing else changed
-  function showCompletionChooser(anchor){
-    const existing = document.querySelector('.inline-tag-picker');
-    if(existing) existing.remove();
-
-    const picker = document.createElement('span');
-    picker.className = 'inline-tag-picker';
-    picker.innerHTML = `
-      <select aria-label="Choose completion tag" class="tag-select">
-        <option value="">Choose tag (optional)</option>
-        <option>Sent to TRG</option>
-        <option>Will be reimbursed on payday</option>
-        <option>Will pay in cash</option>
-        <option>Rejected</option>
-      </select>
-      <button class="btn btn-primary apply-tag">Apply</button>
-      <button class="action-btn cancel-tag">Cancel</button>
-    `;
-
-    anchor.parentElement.appendChild(picker);
-    const sel = picker.querySelector('select');
-    const applyBtn = picker.querySelector('.apply-tag');
-    const cancelBtn = picker.querySelector('.cancel-tag');
-    sel.focus();
-
-    function cleanup(){ if(picker && picker.parentElement) picker.remove(); document.removeEventListener('click', onDocClick); }
-
-    applyBtn.addEventListener('click', ()=>{
-      const tag = sel.value || '';
-      if(!CURRENT_INVOICE){ cleanup(); return; }
-      CURRENT_INVOICE.completionTag = tag;
-      CURRENT_INVOICE.archivedCompleted = true;
-      alert('Applied completion tag: ' + (tag||'(none)') + ' (demo).');
-      cleanup();
-      window.location.href = 'dashboard1.html';
-    });
-
-    cancelBtn.addEventListener('click', cleanup);
-
-    function onDocClick(e){
-      if(!picker.contains(e.target) && e.target !== anchor){
-        cleanup();
-      }
-    }
-    setTimeout(()=> document.addEventListener('click', onDocClick), 50);
-  }
-
-  // Wire Mark as Completed buttons to inline chooser (replaces prompt only for these buttons)
-  document.getElementById('markCompletedBtn').addEventListener('click', (e)=> showCompletionChooser(e.currentTarget));
-  document.getElementById('markCompletedFooter').addEventListener('click', (e)=> showCompletionChooser(e.currentTarget));
-
-  // legacy fallback (kept but not wired)
-  function openMarkCompletedDialog(){
-    const tag = prompt('Completion tag (demo)','Sent to TRG');
-    if(tag === null) return;
-    if(!CURRENT_INVOICE) return;
-    CURRENT_INVOICE.completionTag = tag;
-    CURRENT_INVOICE.archivedCompleted = true;
-    alert('Marked as completed: ' + tag + ' (demo).');
-    window.location.href = 'dashboard1.html';
-  }
-
-  // init: register initial attachments and populate
-  (function init(){
-    const inv = getQueryParam('inv') || 'INV-2025-001';
-    const data = loadInvoiceById(inv);
-    const list = document.getElementById('supportList'); list.innerHTML = '';
-    const approvedElectronic = data.directorAction && data.directorAction.type === 'approved_electronic';
-    const approvedPhysical = data.directorAction && data.directorAction.type === 'approved_physical';
-    data.attached.forEach((f, idx)=>{
-      const id = 'init-' + idx;
-      const info = { name: f.name, type: f.type, size: 2048, contentHtml: sampleContentFor(f.name, f.type) };
-      if(approvedElectronic && (/paymentorder|paymentrequest/i).test(f.name)){
-        info.signed = 'electronic';
-      }
-      registerSupport(id, info);
-      const readonlyRemove = !!info.signed;
-      appendSupportItem(list, id, info, readonlyRemove);
-    });
-    populatePage(data);
-    // Remove Save draft button if present
-    const sd = document.getElementById('saveDraft');
-    if(sd) sd.remove();
-  })();
-</script>
-</body>
-</html>
+      directorAction: { type: 'approved_electronic', note: '

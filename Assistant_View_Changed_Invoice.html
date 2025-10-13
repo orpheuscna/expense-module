@@ -120,4 +120,84 @@ document.getElementById('autoCalc').addEventListener('click', ()=> { const rows=
 
 document.getElementById('saveDraft').addEventListener('click', ()=> alert('Draft saved (demo).')); document.getElementById('submitToDirector').addEventListener('click', ()=> { alert('Resubmitted to Director (demo).'); document.getElementById('panelStatus').textContent='Resubmitted'; }); document.getElementById('submitPanel').addEventListener('click', ()=> { const { grand } = computeTotals(); const invoiceTotal = parseMoney(document.getElementById('totalFld').value); if(Math.abs(invoiceTotal - grand) > 0.005){ if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return; } alert('Resubmitted to Director (demo).'); document.getElementById('panelStatus').textContent='Resubmitted'; window.location.href='dashboard1.html'; });
 
-// init: register initial attachments and populate (function init(){ const inv = getQueryParam('inv') || 'INV-2025-001'; const data = loadInvoiceById(inv); const list = document.getElementById('supportList'); list.innerHTML = ''; data.attached.forEach((f, idx)=>{ const id = 'init-' + idx; const info = { name: f.name, type: f.type, size: 2048, contentHtml: sampleContentFor(f.name, f.type) }; registerSupport(id, info); appendSupportItem(list, id, info); }); populatePage(data); })(); </script> </body> </html>
+// init: register initial attachments and populate (function init(){ const inv = getQueryParam('inv') || 'INV-2025-001'; const data = loadInvoiceById(inv); const list = document.getElementById('supportList'); list.innerHTML = ''; data.attached.forEach((f, idx)=>{ const id = 'init-' + idx; const info = { name: f.name, type: f.type, size: 2048, contentHtml: sampleContentFor(f.name, f.type) }; registerSupport(id, info); appendSupportItem(list, id, info); }); populatePage(data); })(); </script> <script>
+document.addEventListener('DOMContentLoaded', function(){
+  const goBack = () => { window.location.href = 'Assistant_Invoice_Management.html'; };
+
+  // close buttons
+  document.getElementById('closeBtn')?.addEventListener('click', goBack);
+  document.getElementById('closePanelFooter')?.addEventListener('click', goBack);
+
+  // save / submit buttons
+  document.getElementById('saveDraft')?.addEventListener('click', function(){ alert('Draft saved (demo).'); goBack(); });
+  document.getElementById('submitToDirector')?.addEventListener('click', function(){ alert('Submitted to Director (demo).'); document.getElementById('panelStatus')?.textContent='Submitted'; goBack(); });
+  document.getElementById('submitPanel')?.addEventListener('click', function(){
+    try {
+      if (typeof computeTotals === 'function' && typeof parseMoney === 'function') {
+        const { grand } = computeTotals(); const invoiceTotal = parseMoney(document.getElementById('totalFld')?.value || '');
+        if (Math.abs((invoiceTotal||0) - (grand||0)) > 0.005) { if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return; }
+      }
+    } catch(e){}
+    alert('Submitted to Director (demo).'); document.getElementById('panelStatus')?.textContent='Submitted'; goBack();
+  });
+
+  // mark completed (buttons)
+  document.getElementById('markCompletedBtn')?.addEventListener('click', function(){ alert('Marked as completed (demo).'); goBack(); });
+  document.getElementById('markCompletedFooter')?.addEventListener('click', function(){ alert('Marked as completed (demo).'); goBack(); });
+
+  // resubmit shortcuts (if present)
+  document.querySelectorAll('.resubmit-row').forEach(btn => btn.addEventListener('click', function(){ alert('Resubmitted (demo).'); goBack(); }));
+
+  // patch inline apply from any dynamically created picker (best-effort)
+  setTimeout(()=>{
+    document.querySelectorAll('.inline-tag-picker .apply-tag, .tag-picker .btn.btn-primary').forEach(b=>{
+      b.addEventListener('click', ()=> setTimeout(goBack, 120), { once:true });
+    });
+  }, 100);
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const goBack = () => { window.location.href = 'Assistant_Invoice_Management.html'; };
+
+  // Close buttons (header + footer)
+  document.getElementById('closeBtn')?.addEventListener('click', goBack);
+  document.getElementById('closePanelFooter')?.addEventListener('click', goBack);
+
+  // Save draft -> save then return
+  document.getElementById('saveDraft')?.addEventListener('click', function(){
+    alert('Draft saved (demo).');
+    goBack();
+  });
+
+  // Header Resubmit / Footer Submit -> validate then return
+  document.getElementById('submitToDirector')?.addEventListener('click', function(){
+    alert('Resubmitted to Director (demo).');
+    document.getElementById('panelStatus')?.textContent = 'Resubmitted';
+    goBack();
+  });
+
+  document.getElementById('submitPanel')?.addEventListener('click', function(){
+    try {
+      if (typeof computeTotals === 'function' && typeof parseMoney === 'function') {
+        const { grand } = computeTotals();
+        const invoiceTotal = parseMoney(document.getElementById('totalFld')?.value || '');
+        if (Math.abs((invoiceTotal||0) - (grand||0)) > 0.005) {
+          if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return;
+        }
+      }
+    } catch(e) { /* ignore and continue */ }
+    alert('Resubmitted to Director (demo).');
+    document.getElementById('panelStatus')?.textContent = 'Resubmitted';
+    goBack();
+  });
+
+  // Best-effort: if dynamic inline Apply buttons exist, redirect shortly after they run
+  setTimeout(()=>{
+    document.querySelectorAll('.inline-tag-picker .apply-tag, .tag-picker .btn.btn-primary').forEach(btn=>{
+      btn.addEventListener('click', ()=> setTimeout(goBack, 120), { once: true });
+    });
+  }, 150);
+});
+</script>
+</body> </html>
