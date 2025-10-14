@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -30,8 +30,12 @@
   .s-approved-physical{background:var(--approved-bg);color:#047857}
   .s-changes-requested{background:var(--changes-requested-bg);color:#9a5800}
   .s-rejected{background:#fff1f2;color:var(--danger)}
+  .s-paid{background:#ecfdf5;color:var(--success)}
+  .s-to-be-paid{background:#fff7ed;color:var(--navy)}
   .compact{font-size:13px;color:var(--muted)}
   .actions button{margin-left:6px;padding:6px 10px;border-radius:8px;border:1px solid #e6eef6;background:#fff;cursor:pointer}
+  .payment-primary{background:linear-gradient(90deg,var(--blue),#6ea8ff);color:#08306b;border:0;padding:6px 10px;border-radius:8px;cursor:pointer}
+  .payment-secondary{background:#fff;border:1px solid #e6eef6;color:var(--navy);padding:6px 10px;border-radius:8px;cursor:pointer}
   th.amount,td.amount{width:140px;text-align:right;padding-right:18px}
   th.status,td.status{min-width:140px}
   .detail-panel{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:flex-end;padding:40px;pointer-events:none}
@@ -67,6 +71,35 @@
   .upload-neutral{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid #e6eef6;background:#fff;color:var(--navy);font-weight:700;cursor:pointer;text-decoration:none;}
   .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
   .progress-bar{transition:width .3s linear}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:600}
+  .modal{width:680px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3)}
+  /* Make split rows wrap on small widths and allow inputs to shrink */
+.split-row{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom:8px;
+  flex-wrap:wrap;               /* allow row to wrap to next line */
+}
+
+/* Use flexible widths so fields adapt and Ref grows to fit */
+.split-row .split-amount{ flex: 0 0 110px; min-width:90px; }
+.split-row .split-type{   flex: 0 0 140px; min-width:110px; }
+.split-row .split-date{   flex: 0 0 130px; min-width:110px; }
+.split-row .split-method{ flex: 0 0 140px; min-width:110px; }
+.split-row .split-ref{    flex: 1 1 120px; min-width:80px; }
+
+/* Keep remove action visible and sized */
+.split-row .remove-split{ flex: 0 0 72px; min-width:56px; }
+
+/* Allow modal to use more viewport on small screens */
+.modal{ max-width:92vw; width:auto; min-width:520px; }
+
+/* Slight compacting on very small viewports */
+@media (max-width:540px){
+  .split-row input, .split-row select{ padding:6px 6px; font-size:13px; }
+  .split-row .split-amount{ flex-basis:95px; }
+}
 </style>
 </head>
 <body>
@@ -117,7 +150,7 @@
           <th scope="col">Date</th>
           <th scope="col" class="amount">Amount</th>
           <th scope="col" class="status">Status</th>
-          <th scope="col" style="width:220px">Actions</th>
+          <th scope="col" style="width:260px">Actions</th>
         </tr>
       </thead>
       <tbody id="inboxBody"></tbody>
@@ -295,6 +328,78 @@
   </div>
 </div>
 
+<!-- PAYMENT MODAL -->
+<div id="paymentModalBackdrop" class="modal-backdrop" aria-hidden="true" style="display:none">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle">
+    <div style="font-weight:700;margin-bottom:8px" id="paymentModalTitle">Settle invoice</div>
+
+    <div id="paymentModalBody">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <label style="margin:0;font-weight:600">Mode</label>
+        <label class="compact" style="margin:0 6px"><input id="singleMode" type="radio" name="payMode" checked /> Single</label>
+        <label class="compact" style="margin:0 6px"><input id="splitMode" type="radio" name="payMode" /> Split</label>
+      </div>
+
+      <!-- Single payment area -->
+      <div id="singlePaymentArea">
+        <div class="field">
+          <label class="compact">Type</label>
+          <select id="payType" class="filter">
+            <option value="pay">Pay vendor</option>
+            <option value="reimburse">Reimburse employee</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="compact">Amount</label>
+          <input id="payAmount" class="input" type="number" step="0.01" min="0" />
+          <div id="payRemaining" class="compact" style="margin-top:6px;color:var(--muted)"></div>
+        </div>
+
+        <div class="field">
+          <label class="compact">Payment date</label>
+          <input id="payDate" class="input" type="date" />
+        </div>
+
+        <div class="field">
+          <label class="compact">Method</label>
+          <select id="payMethod" class="filter">
+            <option>Bank transfer</option>
+            <option>Cash</option>
+            <option>Card</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="compact">Reference</label>
+          <input id="payRef" class="input" />
+        </div>
+
+        <div class="field">
+          <label class="compact">Note</label>
+          <textarea id="payNote" class="input" rows="3"></textarea>
+        </div>
+      </div>
+
+      <!-- Split payment area -->
+      <div id="splitPaymentArea" style="display:none">
+        <div id="splitRows"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <button id="addSplitRow" class="btn btn-outline" type="button">Add split line</button>
+          <div class="muted-inline">Each line will create a separate payment record</div>
+        </div>
+        <div class="muted-inline" id="splitSummary" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button id="payModalCancel" class="btn btn-outline">Cancel</button>
+      <button id="payModalConfirm" class="btn btn-primary">Confirm payment</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* Full invoice dataset (unchanged) */
 let invoices = [
@@ -352,6 +457,10 @@ function renderInbox(){
   const tagFilter = getById('completionTagFilter') ? (getById('completionTagFilter').value || '').trim() : '';
 
   invoices.forEach(inv => {
+    // ensure payment fields exist
+    if(typeof inv.balanceRemaining === 'undefined') inv.balanceRemaining = Number(inv.amount || 0);
+    if(typeof inv.paymentRecords === 'undefined') inv.paymentRecords = [];
+
     if(showCompleted){
       if(!inv.archivedCompleted) return;
     } else {
@@ -384,46 +493,77 @@ function renderInbox(){
     const tdAmount = document.createElement('td'); tdAmount.className = 'amount'; tdAmount.textContent = '$' + (Number(inv.amount || 0)).toFixed(2); tr.appendChild(tdAmount);
 
     const tdStatus = document.createElement('td'); tdStatus.className = 'status';
-    const span = document.createElement('span'); span.className = 'status ' + statusClass(inv.status); span.textContent = statusLabel(inv.status);
+    const span = document.createElement('span');
+    if(inv.archivedCompleted){
+      if(inv.balanceRemaining <= 0){
+        span.className = 'status s-paid'; span.textContent = 'Paid';
+      } else {
+        span.className = 'status s-to-be-paid'; span.textContent = 'Completed (unsettled)';
+      }
+    } else {
+      span.className = 'status ' + statusClass(inv.status); span.textContent = statusLabel(inv.status);
+    }
     tdStatus.appendChild(span); tr.appendChild(tdStatus);
 
     const tdActions = document.createElement('td'); tdActions.className = 'compact actions';
-    let linkUrl = '';
-if (inv.status === 'pending_review' || inv.status === 'pending_approval') {
-    linkUrl = 'Assistant_View_Invoice.html?id=' + inv.id;
-} else if (
-    inv.status === 'approved_electronic' ||
-    inv.status === 'approved_physical' ||
-    inv.status === 'rejected'
-) {
-    linkUrl = 'Assistant_View_Approved_Invoice.html?id=' + inv.id;
-} else if (inv.status === 'changes_requested') {
-    linkUrl = 'Assistant_View_Changed_Invoice.html?id=' + inv.id;
-} else {
-    linkUrl = '#';
-}
-const aOpen = document.createElement('a');
-aOpen.className = 'btn btn-outline open';
-aOpen.href = linkUrl;
-aOpen.textContent = 'Open';
-tdActions.appendChild(aOpen);
 
-    if(inv.status === 'pending_review'){
-      const btnSubmit = document.createElement('button'); btnSubmit.className='btn btn-outline submit'; btnSubmit.type='button'; btnSubmit.dataset.id=inv.id; btnSubmit.textContent='Submit'; tdActions.appendChild(btnSubmit);
-    }
+    if(inv.archivedCompleted){
+      if(inv.balanceRemaining > 0){
+        // choose action based on whether it's an employee expense (reimburse) or vendor
+        if(inv.employeeExpense){
+          const btnReimb = document.createElement('button'); btnReimb.className='payment-primary'; btnReimb.type='button'; btnReimb.dataset.id=inv.id; btnReimb.textContent='Reimburse employee';
+          btnReimb.addEventListener('click', ()=> openSettleModal(inv.id,'reimburse'));
+          tdActions.appendChild(btnReimb);
+        } else {
+          const btnPay = document.createElement('button'); btnPay.className='payment-primary'; btnPay.type='button'; btnPay.dataset.id=inv.id; btnPay.textContent='Pay vendor';
+          btnPay.addEventListener('click', ()=> openSettleModal(inv.id,'pay'));
+          tdActions.appendChild(btnPay);
+        }
+        const btnPartial = document.createElement('button'); btnPartial.className='payment-secondary'; btnPartial.type='button'; btnPartial.dataset.id=inv.id; btnPartial.textContent='Partial pay';
+        btnPartial.addEventListener('click', ()=> openSettleModal(inv.id,'partial'));
+        tdActions.appendChild(btnPartial);
+      } else {
+        const done = document.createElement('div'); done.className='compact'; done.textContent = 'Settled';
+        tdActions.appendChild(done);
+      }
+    } else {
+      const aOpen = document.createElement('a');
+      aOpen.className = 'btn btn-outline open';
+      let linkUrl = '';
+      if (inv.status === 'pending_review' || inv.status === 'pending_approval') {
+          linkUrl = 'Assistant_View_Invoice.html?id=' + inv.id;
+      } else if (
+          inv.status === 'approved_electronic' ||
+          inv.status === 'approved_physical' ||
+          inv.status === 'rejected'
+      ) {
+          linkUrl = 'Assistant_View_Approved_Invoice.html?id=' + inv.id;
+      } else if (inv.status === 'changes_requested') {
+          linkUrl = 'Assistant_View_Changed_Invoice.html?id=' + inv.id;
+      } else {
+          linkUrl = '#';
+      }
+      aOpen.href = linkUrl;
+      aOpen.textContent = 'Open';
+      tdActions.appendChild(aOpen);
 
-    if(inv.status === 'changes_requested'){
-      const btnResubmit = document.createElement('button'); btnResubmit.className='btn btn-outline resubmit-row'; btnResubmit.type='button'; btnResubmit.dataset.id=inv.id; btnResubmit.textContent='Resubmit'; tdActions.appendChild(btnResubmit);
-    }
+      if(inv.status === 'pending_review'){
+        const btnSubmit = document.createElement('button'); btnSubmit.className='btn btn-outline submit'; btnSubmit.type='button'; btnSubmit.dataset.id=inv.id; btnSubmit.textContent='Submit'; tdActions.appendChild(btnSubmit);
+      }
 
-    if(inv.status === 'pending_review'){
-      const btnDelete = document.createElement('button'); btnDelete.className='btn btn-outline delete'; btnDelete.type='button'; btnDelete.dataset.id = inv.id;
-      btnDelete.style.color='var(--danger)'; btnDelete.style.borderColor='#fee2e2'; btnDelete.textContent='Delete'; tdActions.appendChild(btnDelete);
-    }
+      if(inv.status === 'changes_requested'){
+        const btnResubmit = document.createElement('button'); btnResubmit.className='btn btn-outline resubmit-row'; btnResubmit.type='button'; btnResubmit.dataset.id=inv.id; btnResubmit.textContent='Resubmit'; tdActions.appendChild(btnResubmit);
+      }
 
-    if((inv.status === 'approved_electronic' || inv.status === 'approved_physical' || inv.status === 'rejected') && !showCompleted){
-      const btnCompleted = document.createElement('button'); btnCompleted.className='btn mark-completed'; btnCompleted.type='button'; btnCompleted.dataset.id=inv.id; btnCompleted.textContent='Mark as Completed';
-      tdActions.appendChild(btnCompleted);
+      if(inv.status === 'pending_review'){
+        const btnDelete = document.createElement('button'); btnDelete.className='btn btn-outline delete'; btnDelete.type='button'; btnDelete.dataset.id = inv.id;
+        btnDelete.style.color='var(--danger)'; btnDelete.style.borderColor='#fee2e2'; btnDelete.textContent='Delete'; tdActions.appendChild(btnDelete);
+      }
+
+      if((inv.status === 'approved_electronic' || inv.status === 'approved_physical' || inv.status === 'rejected') && !getById('showCompleted').checked){
+        const btnCompleted = document.createElement('button'); btnCompleted.className='btn mark-completed'; btnCompleted.type='button'; btnCompleted.dataset.id=inv.id; btnCompleted.textContent='Mark as Completed';
+        tdActions.appendChild(btnCompleted);
+      }
     }
 
     tr.appendChild(tdActions);
@@ -545,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
 /* delegated inbox actions */
 getById('inboxBody').addEventListener('click', (e)=>{
-  const openBtn = e.target.closest('.open'); if(openBtn){ openDetail(openBtn.dataset.id); return; }
+  const openBtn = e.target.closest('.open'); if(openBtn){ /* anchor open handled by link */ return; }
   const submitBtn = e.target.closest('.submit'); if(submitBtn){
     const id = submitBtn.dataset.id; const inv = invoices.find(i=>i.id===id); if(!inv) return;
     if(inv.status === 'pending_review'){ inv.status='pending_approval'; inv.history=(inv.history||[]).concat([`Submitted to Director • ${new Date().toLocaleString()}`]); renderInbox(); alert(`Submitted ${inv.number} to Director (demo).`);} else alert('Submit ignored');
@@ -621,15 +761,11 @@ getById('archiveRejected').addEventListener('click', ()=>{
   inv.archivedRejected = true; renderInbox(); closeDetail();
 });
 
-/* --- Upload functions restored and defined before listeners ---
-    Updated: when mode === 'scan' set panel title to "Scan to Upload"
-    and subtitle to guide desktop scanner usage. Nothing else changed.
-*/
+/* --- Upload functions restored and defined before listeners --- */
 function openUploadPanel(mode){
   const b = getById('uploadBackdrop');
   b.style.display = 'flex';
   b.setAttribute('aria-hidden','false');
-  // set titles like 7.txt, with scan guidance
   const title = getById('uploadPanelTitle');
   const sub = getById('uploadPanelSubtitle');
   if(title) {
@@ -781,18 +917,207 @@ getById('panelFileLabel').addEventListener('click', ()=> getById('panelFileInput
 /* filters */
 ['q','statusFilter','categoryFilter','dateFrom','dateTo','showCompleted','completionTagFilter'].forEach(id=>{ const el=getById(id); if(el) el.addEventListener('input', ()=> renderInbox()); });
 
+/* PAYMENT functionality with Split support */
+let _currentSettle = null;
+
+function openSettleModal(invId, mode){
+  const inv = invoices.find(i=>i.id===invId);
+  if(!inv) return;
+  _currentSettle = { id: invId, mode };
+  const remaining = Number(inv.balanceRemaining || inv.amount || 0);
+  // default to single unless 'partial' requested -> set single with prefilled half
+  getById('singleMode').checked = true;
+  getById('splitMode').checked = false;
+  getById('splitPaymentArea').style.display = 'none';
+  getById('singlePaymentArea').style.display = 'block';
+  getById('payAmount').value = (mode === 'partial' ? (remaining/2).toFixed(2) : remaining.toFixed(2));
+  getById('payRemaining').textContent = 'Remaining balance: $' + remaining.toFixed(2);
+  getById('payDate').value = new Date().toISOString().slice(0,10);
+  getById('payType').value = (mode === 'reimburse') ? 'reimburse' : 'pay';
+  getById('payMethod').value = 'Bank transfer';
+  getById('payRef').value = '';
+  getById('payNote').value = '';
+
+  // clear split rows
+  document.getElementById('splitRows').innerHTML = '';
+  getById('splitSummary').textContent = '';
+
+  getById('paymentModalBackdrop').style.display = 'flex';
+  getById('paymentModalBackdrop').setAttribute('aria-hidden','false');
+}
+
+function closePaymentModal(){ getById('paymentModalBackdrop').style.display='none'; getById('paymentModalBackdrop').setAttribute('aria-hidden','true'); _currentSettle = null; }
+
+getById('singleMode').addEventListener('change', ()=>{
+  getById('singlePaymentArea').style.display = 'block';
+  getById('splitPaymentArea').style.display = 'none';
+  getById('payModalConfirm').textContent = (getById('payType').value === 'reimburse') ? 'Confirm reimbursement' : 'Confirm payment';
+});
+getById('splitMode').addEventListener('change', ()=>{
+  getById('singlePaymentArea').style.display = 'none';
+  getById('splitPaymentArea').style.display = 'block';
+  getById('payModalConfirm').textContent = 'Confirm split payments';
+});
+
+getById('addSplitRow').addEventListener('click', ()=>{
+  const inv = invoices.find(i=>i.id===(_currentSettle && _currentSettle.id));
+  const remaining = inv ? Number(inv.balanceRemaining || inv.amount || 0) : 0;
+  const row = document.createElement('div');
+  row.className = 'split-row';
+  row.innerHTML = `
+    <input class="split-amount" type="number" step="0.01" min="0" placeholder="Amount" />
+    <select class="split-type">
+      <option value="pay">Pay vendor</option>
+      <option value="reimburse">Reimburse employee</option>
+    </select>
+    <input class="split-date split-date" type="date" value="${new Date().toISOString().slice(0,10)}" />
+    <select class="split-method split-method">
+      <option>Bank transfer</option><option>Cash</option><option>Card</option><option>Other</option>
+    </select>
+    <input class="split-ref" placeholder="Ref" />
+    <button class="btn btn-outline remove-split" type="button">Remove</button>
+  `;
+  document.getElementById('splitRows').appendChild(row);
+  updateSplitSummary();
+});
+
+document.getElementById('splitRows').addEventListener('click', (e)=>{
+  const rem = e.target.closest('.remove-split');
+  if(rem){
+    const row = rem.closest('.split-row');
+    if(row) row.remove();
+    updateSplitSummary();
+  }
+});
+
+function updateSplitSummary(){
+  const inv = invoices.find(i=>i.id===(_currentSettle && _currentSettle.id));
+  const max = inv ? Number(inv.balanceRemaining || inv.amount || 0) : 0;
+  const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
+  const sum = rows.reduce((s, r) => s + Number((r.querySelector('.split-amount') && r.querySelector('.split-amount').value) || 0), 0);
+  const remaining = Math.max(0, (max - sum));
+  getById('splitSummary').textContent = `Total split amount: $${sum.toFixed(2)} • Remaining after splits: $${remaining.toFixed(2)} (invoice remaining $${max.toFixed(2)})`;
+}
+
+/* watch split amounts to recompute */
+document.getElementById('splitRows').addEventListener('input', (e)=>{
+  if(e.target.classList.contains('split-amount')) updateSplitSummary();
+});
+
+/* Single payment handlers */
+getById('payModalCancel').addEventListener('click', ()=> closePaymentModal());
+
+getById('payModalConfirm').addEventListener('click', ()=>{
+  if(!_currentSettle) return;
+  const inv = invoices.find(i=>i.id===_currentSettle.id);
+  if(!inv) return;
+
+  // If split mode is active -> handle multiple lines
+  if(getById('splitMode').checked){
+    const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
+    if(rows.length === 0){ alert('Add at least one split line'); return; }
+    const max = Number(inv.balanceRemaining || inv.amount || 0);
+    const payload = rows.map(r => {
+      return {
+        amount: Number((r.querySelector('.split-amount') && r.querySelector('.split-amount').value) || 0),
+        type: (r.querySelector('.split-type') && r.querySelector('.split-type').value) || 'pay',
+        date: (r.querySelector('.split-date') && r.querySelector('.split-date').value) || new Date().toISOString().slice(0,10),
+        method: (r.querySelector('.split-method') && r.querySelector('.split-method').value) || 'Bank transfer',
+        ref: (r.querySelector('.split-ref') && r.querySelector('.split-ref').value.trim()) || '',
+        note: ''
+      };
+    });
+
+    const total = payload.reduce((s,p) => s + Number(p.amount||0), 0);
+    if(total <= 0){ alert('Enter valid amounts for split lines'); return; }
+    if(total > max + 0.0001){ alert('Total split amount cannot exceed remaining balance: $' + max.toFixed(2)); return; }
+
+    // create paymentRecords for each line and reduce balance
+    payload.forEach(p => {
+      inv.paymentRecords = inv.paymentRecords || [];
+      inv.paymentRecords.push({ amount: Number(p.amount), date: p.date, method: p.method, ref: p.ref, note: p.note, type: p.type, by: 'Assistant (demo)' });
+      inv.balanceRemaining = Number((Number(inv.balanceRemaining || inv.amount || 0) - Number(p.amount)).toFixed(2));
+      if(inv.balanceRemaining < 0) inv.balanceRemaining = 0;
+      inv.history = (inv.history||[]).concat([`${p.type === 'reimburse' ? 'Reimbursed' : 'Paid'} ${'$'+Number(p.amount).toFixed(2)} • ${new Date().toLocaleString()} (${p.ref || 'no ref'})`]);
+    });
+
+    // update status
+    if(inv.balanceRemaining <= 0){
+      inv.paymentStatus = 'paid';
+      inv.balanceRemaining = 0;
+    } else {
+      inv.paymentStatus = 'partial';
+    }
+
+    closePaymentModal();
+    renderInbox();
+    alert('Recorded split payment lines for ' + inv.number + ' (demo).');
+    return;
+  }
+
+  // Single mode
+  const amt = Number(getById('payAmount').value || 0);
+  const max = Number(inv.balanceRemaining || inv.amount || 0);
+  if(isNaN(amt) || amt <= 0){ alert('Enter a valid amount'); return; }
+  if(amt > max + 0.0001){ alert('Amount cannot exceed remaining balance: $' + max.toFixed(2)); return; }
+  const type = getById('payType').value;
+  const date = getById('payDate').value || new Date().toISOString().slice(0,10);
+  const method = getById('payMethod').value;
+  const ref = getById('payRef').value.trim();
+  const note = getById('payNote').value.trim();
+
+  inv.paymentRecords = inv.paymentRecords || [];
+  inv.paymentRecords.push({ amount: amt, date, method, ref, note, type, by: 'Assistant (demo)' });
+  inv.balanceRemaining = Number((Number(inv.balanceRemaining || inv.amount || 0) - amt).toFixed(2));
+  if(inv.balanceRemaining <= 0){
+    inv.paymentStatus = (type === 'reimburse') ? 'reimbursed' : 'paid';
+    inv.balanceRemaining = 0;
+    inv.history = (inv.history||[]).concat([`${type==='reimburse' ? 'Reimbursed' : 'Paid'} • ${new Date().toLocaleString()} (${ref || 'no ref'})`]);
+  } else {
+    inv.paymentStatus = 'partial';
+    inv.history = (inv.history||[]).concat([`Partial payment ${'$'+amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`]);
+  }
+
+  closePaymentModal();
+  renderInbox();
+  alert((amt>0?('$'+amt.toFixed(2)):'') + ' recorded for ' + inv.number + ' (demo).');
+});
+
+getById('payAmount').addEventListener('input', ()=>{
+  if(!_currentSettle) return;
+  const inv = invoices.find(i=>i.id===_currentSettle.id);
+  if(!inv) return;
+  const typed = Number(getById('payAmount').value || 0);
+  const max = Number(inv.balanceRemaining || inv.amount || 0);
+  const remaining = Math.max(0, (max - (isNaN(typed)?0:typed)));
+  getById('payRemaining').textContent = 'Remaining after this payment: $' + remaining.toFixed(2);
+});
+
+getById('payType').addEventListener('change', ()=>{
+  const t = getById('payType').value;
+  getById('payModalConfirm').textContent = (t === 'reimburse') ? 'Confirm reimbursement' : 'Confirm payment';
+});
+
 /* utilities */
 function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]);}
 
 /* init */
 renderInbox();
+
+/* small helper: update split summary when rows change due to user typing */
+setInterval(()=> {
+  if(document.getElementById('paymentModalBackdrop').style.display === 'flex') updateSplitSummary();
+}, 800);
 </script>
 <script>
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('open')) {
+    const href = e.target.getAttribute('href');
+    if(href && href !== '#') return; // let anchor navigate normally
     const invId = e.target.dataset.id;
+    if(!invId) return;
     const row = e.target.closest('tr');
-    const statusCell = row.querySelector('td:nth-child(5)');
+    const statusCell = row.querySelector('td:nth-child(6)');
     let statusText = statusCell ? statusCell.textContent.trim().toLowerCase() : '';
 
     let targetPage = '';
@@ -807,19 +1132,11 @@ document.addEventListener('click', function(e) {
     } else if (statusText.includes('changes requested')) {
       targetPage = 'Assistant_View_Changed_Invoice.html?id=' + invId;
     } else {
-          // Do nothing if status is not recognized
       return;
     }
     window.location.href = targetPage;
   }
 });
 </script>
-</script>
 </body>
 </html>
-
-```
-
-
-
-
