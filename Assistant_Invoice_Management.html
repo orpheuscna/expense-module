@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="asset-version" content="2025-10-14-1" />
+<meta name="asset-version" content="2025-10-14" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Invoice Management — Completed Filter & Tags</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -73,34 +73,21 @@
   .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
   .progress-bar{transition:width .3s linear}
   .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:600}
-  .modal{width:680px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3)}
-  /* Make split rows wrap on small widths and allow inputs to shrink */
-.split-row{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  margin-bottom:8px;
-  flex-wrap:wrap;               /* allow row to wrap to next line */
-}
-
-/* Use flexible widths so fields adapt and Ref grows to fit */
-.split-row .split-amount{ flex: 0 0 110px; min-width:90px; }
-.split-row .split-type{   flex: 0 0 140px; min-width:110px; }
-.split-row .split-date{   flex: 0 0 130px; min-width:110px; }
-.split-row .split-method{ flex: 0 0 140px; min-width:110px; }
-.split-row .split-ref{    flex: 1 1 120px; min-width:80px; }
-
-/* Keep remove action visible and sized */
-.split-row .remove-split{ flex: 0 0 72px; min-width:56px; }
-
-/* Allow modal to use more viewport on small screens */
-.modal{ max-width:92vw; width:auto; min-width:520px; }
-
-/* Slight compacting on very small viewports */
-@media (max-width:540px){
-  .split-row input, .split-row select{ padding:6px 6px; font-size:13px; }
-  .split-row .split-amount{ flex-basis:95px; }
-}
+  .modal{width:680px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3);max-width:92vw;min-width:480px}
+  .split-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+  .split-row .small { font-size:12px;color:var(--muted) }
+  .split-row input, .split-row select{padding:6px;border-radius:6px;border:1px solid #e6eef6}
+  .split-amount{flex:0 0 110px;min-width:90px}
+  .split-date{flex:0 0 130px;min-width:110px}
+  .split-method{flex:0 0 140px;min-width:110px}
+  .split-type{flex:0 0 140px;min-width:110px}
+  .split-ref{flex:1 1 120px;min-width:80px}
+  .split-actions{width:60px;text-align:center}
+  .muted-inline{font-size:13px;color:var(--muted);margin-top:6px}
+  @media (max-width:540px){
+    .split-row input, .split-row select{ padding:6px 6px; font-size:13px; }
+    .split-amount{ flex-basis:95px; }
+  }
 </style>
 </head>
 <body>
@@ -381,6 +368,11 @@
           <label class="compact">Note</label>
           <textarea id="payNote" class="input" rows="3"></textarea>
         </div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <input id="schedulePayment" type="checkbox" />
+          <label for="schedulePayment" class="compact" style="margin:0">Schedule payment (do not record now)</label>
+        </div>
       </div>
 
       <!-- Split payment area -->
@@ -391,6 +383,11 @@
           <div class="muted-inline">Each line will create a separate payment record</div>
         </div>
         <div class="muted-inline" id="splitSummary" style="margin-top:10px"></div>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <input id="scheduleSplit" type="checkbox" />
+          <label for="scheduleSplit" class="compact" style="margin:0">Schedule split payments (do not record now)</label>
+        </div>
       </div>
     </div>
 
@@ -402,7 +399,7 @@
 </div>
 
 <script>
-/* Full invoice dataset (unchanged) */
+/* Full invoice dataset */
 let invoices = [
   { id:'inv-001', vendor:'ACME Supplies', number:'INV-1001', date:'2025-09-28', amount:1250.00, status:'pending_review', category:'Office Supplies', items:[{desc:'Paper',qty:10,price:12.5}], history:['Submitted by assistant • 2h ago'], directorAction:null, attachments:[] },
   { id:'inv-002', vendor:'Travel Co', number:'INV-1002', date:'2025-09-20', amount:420.00, status:'approved_electronic', category:'Travel', items:[{desc:'Taxi',qty:1,price:120},{desc:'Hotel',qty:1,price:300}], history:['Uploaded • Yesterday','Director approved electronically • 2025-10-02 09:15'], directorAction:{type:'approved_electronic',note:'Approved for payment',time:'2025-10-02 09:15'}, attachments:[], completionTag:'Sent to TRG', archivedCompleted:false },
@@ -461,6 +458,7 @@ function renderInbox(){
     // ensure payment fields exist
     if(typeof inv.balanceRemaining === 'undefined') inv.balanceRemaining = Number(inv.amount || 0);
     if(typeof inv.paymentRecords === 'undefined') inv.paymentRecords = [];
+    if(typeof inv.scheduledPayments === 'undefined') inv.scheduledPayments = [];
 
     if(showCompleted){
       if(!inv.archivedCompleted) return;
@@ -510,6 +508,13 @@ function renderInbox(){
 
     if(inv.archivedCompleted){
       if(inv.balanceRemaining > 0){
+        // NEW: Open invoice button (left of Pay vendor)
+        const btnOpen = document.createElement('button'); btnOpen.className = 'btn btn-outline'; btnOpen.type = 'button'; btnOpen.textContent = 'Open';
+        btnOpen.addEventListener('click', ()=> {
+          window.location.href = 'Assistant_View_Approved_Invoice.html?id=' + encodeURIComponent(inv.id);
+        });
+        tdActions.appendChild(btnOpen);
+
         // choose action based on whether it's an employee expense (reimburse) or vendor
         if(inv.employeeExpense){
           const btnReimb = document.createElement('button'); btnReimb.className='payment-primary'; btnReimb.type='button'; btnReimb.dataset.id=inv.id; btnReimb.textContent='Reimburse employee';
@@ -918,7 +923,7 @@ getById('panelFileLabel').addEventListener('click', ()=> getById('panelFileInput
 /* filters */
 ['q','statusFilter','categoryFilter','dateFrom','dateTo','showCompleted','completionTagFilter'].forEach(id=>{ const el=getById(id); if(el) el.addEventListener('input', ()=> renderInbox()); });
 
-/* PAYMENT functionality with Split support */
+/* PAYMENT functionality with Pay remaining + Schedule support */
 let _currentSettle = null;
 
 function openSettleModal(invId, mode){
@@ -926,18 +931,26 @@ function openSettleModal(invId, mode){
   if(!inv) return;
   _currentSettle = { id: invId, mode };
   const remaining = Number(inv.balanceRemaining || inv.amount || 0);
-  // default to single unless 'partial' requested -> set single with prefilled half
+
+  // default UI
   getById('singleMode').checked = true;
   getById('splitMode').checked = false;
   getById('splitPaymentArea').style.display = 'none';
   getById('singlePaymentArea').style.display = 'block';
-  getById('payAmount').value = (mode === 'partial' ? (remaining/2).toFixed(2) : remaining.toFixed(2));
+
+  // behavior for payRemaining mode: prefill amount to remaining and default payType
+  // Prefill amount and type for partial/pay/reimburse flows
+  getById('payAmount').value = (mode === 'partial') ? (remaining/2).toFixed(2) : remaining.toFixed(2);
+  getById('payType').value = (mode === 'reimburse') ? 'reimburse' : (inv.employeeExpense ? 'reimburse' : 'pay');
+
+
   getById('payRemaining').textContent = 'Remaining balance: $' + remaining.toFixed(2);
   getById('payDate').value = new Date().toISOString().slice(0,10);
-  getById('payType').value = (mode === 'reimburse') ? 'reimburse' : 'pay';
   getById('payMethod').value = 'Bank transfer';
   getById('payRef').value = '';
   getById('payNote').value = '';
+  getById('schedulePayment').checked = false;
+  getById('scheduleSplit').checked = false;
 
   // clear split rows
   document.getElementById('splitRows').innerHTML = '';
@@ -1005,7 +1018,7 @@ document.getElementById('splitRows').addEventListener('input', (e)=>{
   if(e.target.classList.contains('split-amount')) updateSplitSummary();
 });
 
-/* Single payment handlers */
+/* PAYMENT confirm handling (supports scheduling) */
 getById('payModalCancel').addEventListener('click', ()=> closePaymentModal());
 
 getById('payModalConfirm').addEventListener('click', ()=>{
@@ -1013,7 +1026,7 @@ getById('payModalConfirm').addEventListener('click', ()=>{
   const inv = invoices.find(i=>i.id===_currentSettle.id);
   if(!inv) return;
 
-  // If split mode is active -> handle multiple lines
+  // SPLIT mode
   if(getById('splitMode').checked){
     const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
     if(rows.length === 0){ alert('Add at least one split line'); return; }
@@ -1033,7 +1046,18 @@ getById('payModalConfirm').addEventListener('click', ()=>{
     if(total <= 0){ alert('Enter valid amounts for split lines'); return; }
     if(total > max + 0.0001){ alert('Total split amount cannot exceed remaining balance: $' + max.toFixed(2)); return; }
 
-    // create paymentRecords for each line and reduce balance
+    // schedule instead of record?
+    if(getById('scheduleSplit').checked){
+      inv.scheduledPayments = inv.scheduledPayments || [];
+      payload.forEach(p => inv.scheduledPayments.push(Object.assign({}, p, { scheduledAt: new Date().toLocaleString() })));
+      inv.history = (inv.history||[]).concat([`Scheduled ${payload.length} split payment line(s) • ${new Date().toLocaleString()}`]);
+      closePaymentModal();
+      renderInbox();
+      alert('Split payments scheduled (demo).');
+      return;
+    }
+
+    // record each split line
     payload.forEach(p => {
       inv.paymentRecords = inv.paymentRecords || [];
       inv.paymentRecords.push({ amount: Number(p.amount), date: p.date, method: p.method, ref: p.ref, note: p.note, type: p.type, by: 'Assistant (demo)' });
@@ -1042,7 +1066,6 @@ getById('payModalConfirm').addEventListener('click', ()=>{
       inv.history = (inv.history||[]).concat([`${p.type === 'reimburse' ? 'Reimbursed' : 'Paid'} ${'$'+Number(p.amount).toFixed(2)} • ${new Date().toLocaleString()} (${p.ref || 'no ref'})`]);
     });
 
-    // update status
     if(inv.balanceRemaining <= 0){
       inv.paymentStatus = 'paid';
       inv.balanceRemaining = 0;
@@ -1056,7 +1079,7 @@ getById('payModalConfirm').addEventListener('click', ()=>{
     return;
   }
 
-  // Single mode
+  // SINGLE mode
   const amt = Number(getById('payAmount').value || 0);
   const max = Number(inv.balanceRemaining || inv.amount || 0);
   if(isNaN(amt) || amt <= 0){ alert('Enter a valid amount'); return; }
@@ -1067,6 +1090,18 @@ getById('payModalConfirm').addEventListener('click', ()=>{
   const ref = getById('payRef').value.trim();
   const note = getById('payNote').value.trim();
 
+  // If schedule checkbox checked, store scheduledPayments instead of recording now
+  if(getById('schedulePayment').checked){
+    inv.scheduledPayments = inv.scheduledPayments || [];
+    inv.scheduledPayments.push({ amount: amt, date, method, ref, note, type, scheduledAt: new Date().toLocaleString() });
+    inv.history = (inv.history||[]).concat([`Scheduled ${type==='reimburse'?'reimbursement':'payment'} ${'$'+amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`]);
+    closePaymentModal();
+    renderInbox();
+    alert('Payment scheduled (demo).');
+    return;
+  }
+
+  // record payment immediately
   inv.paymentRecords = inv.paymentRecords || [];
   inv.paymentRecords.push({ amount: amt, date, method, ref, note, type, by: 'Assistant (demo)' });
   inv.balanceRemaining = Number((Number(inv.balanceRemaining || inv.amount || 0) - amt).toFixed(2));
@@ -1141,4 +1176,4 @@ document.addEventListener('click', function(e) {
 </script>
 </body>
 </html>
-
+```
