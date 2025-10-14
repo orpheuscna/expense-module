@@ -508,7 +508,7 @@ function renderInbox(){
 
     if(inv.archivedCompleted){
       if(inv.balanceRemaining > 0){
-        // NEW: Open invoice button (left of Pay vendor)
+        // Open invoice button (left of Pay vendor)
         const btnOpen = document.createElement('button'); btnOpen.className = 'btn btn-outline'; btnOpen.type = 'button'; btnOpen.textContent = 'Open';
         btnOpen.addEventListener('click', ()=> {
           window.location.href = 'Assistant_View_Approved_Invoice.html?id=' + encodeURIComponent(inv.id);
@@ -525,9 +525,6 @@ function renderInbox(){
           btnPay.addEventListener('click', ()=> openSettleModal(inv.id,'pay'));
           tdActions.appendChild(btnPay);
         }
-        const btnPartial = document.createElement('button'); btnPartial.className='payment-secondary'; btnPartial.type='button'; btnPartial.dataset.id=inv.id; btnPartial.textContent='Partial pay';
-        btnPartial.addEventListener('click', ()=> openSettleModal(inv.id,'partial'));
-        tdActions.appendChild(btnPartial);
       } else {
         const done = document.createElement('div'); done.className='compact'; done.textContent = 'Settled';
         tdActions.appendChild(done);
@@ -923,7 +920,7 @@ getById('panelFileLabel').addEventListener('click', ()=> getById('panelFileInput
 /* filters */
 ['q','statusFilter','categoryFilter','dateFrom','dateTo','showCompleted','completionTagFilter'].forEach(id=>{ const el=getById(id); if(el) el.addEventListener('input', ()=> renderInbox()); });
 
-/* PAYMENT functionality with Pay remaining + Schedule support */
+/* PAYMENT functionality with Schedule support (Partial pay removed) */
 let _currentSettle = null;
 
 function openSettleModal(invId, mode){
@@ -938,11 +935,9 @@ function openSettleModal(invId, mode){
   getById('splitPaymentArea').style.display = 'none';
   getById('singlePaymentArea').style.display = 'block';
 
-  // behavior for payRemaining mode: prefill amount to remaining and default payType
-  // Prefill amount and type for partial/pay/reimburse flows
-  getById('payAmount').value = (mode === 'partial') ? (remaining/2).toFixed(2) : remaining.toFixed(2);
+  // Prefill amount and type for pay/reimburse flows
+  getById('payAmount').value = remaining.toFixed(2);
   getById('payType').value = (mode === 'reimburse') ? 'reimburse' : (inv.employeeExpense ? 'reimburse' : 'pay');
-
 
   getById('payRemaining').textContent = 'Remaining balance: $' + remaining.toFixed(2);
   getById('payDate').value = new Date().toISOString().slice(0,10);
