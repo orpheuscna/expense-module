@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="asset-version" content="2025-10-15-1" />
+<meta name="asset-version" content="2025-10-14" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Invoice Management — Completed Filter & Tags (Demo Payments Seeded)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -900,7 +900,196 @@ setInterval(()=> {
     wireExportButtons();
   }
 })();
+
+/* create split row with employee fields */
+function addSplitRow() {
+  const row = document.createElement('div');
+  row.className = 'split-row';
+  row.innerHTML = `
+    <input class="split-amount" type="number" step="0.01" min="0" placeholder="Amount" />
+    <select class="split-type">
+      <option value="pay">Pay vendor</option>
+      <option value="reimburse">Reimburse employee</option>
+    </select>
+    <input class="split-date" type="date" value="${new Date().toISOString().slice(0,10)}" />
+    <select class="split-method">
+      <option>Bank transfer</option><option>Cash</option><option>Card</option><option>Other</option>
+    </select>
+    <input class="split-ref" placeholder="Ref" />
+    <div class="split-employee hidden" style="display:flex;flex-direction:column;min-width:200px">
+      <input class="split-emp-id" placeholder="Employee ID" />
+      <input class="split-emp-name" placeholder="Employee name" style="margin-top:6px" />
+    </div>
+    <button class="btn btn-outline remove-split" type="button">Remove</button>
+  `;
+  const splitRows = getById('splitRows');
+  if(splitRows) splitRows.appendChild(row);
+  updateSplitSummary();
+
+  const typeSelect = row.querySelector('.split-type');
+  const empFields = row.querySelector('.split-employee');
+  if(typeSelect){
+    typeSelect.addEventListener('change', () => {
+      if(typeSelect.value === 'reimburse') empFields.classList.remove('hidden'); else empFields.classList.add('hidden');
+    });
+  }
+}
+const addSplitBtn = getById('addSplitRow');
+if(addSplitBtn) addSplitBtn.addEventListener('click', () => addSplitRow());
+
+getById('splitRows').addEventListener('click', (e)=>{
+  const rem = e.target.closest('.remove-split');
+  if(rem){
+    const row = rem.closest('.split-row');
+    if(row) row.remove();
+    updateSplitSummary();
+  }
+});
+
+function updateSplitSummary(){
+  const inv = invoices.find(i=>i.id===(_currentSettle && _currentSettle.id));
+  const max = inv ? Number(inv.balanceRemaining || inv.amount || 0) : 0;
+  const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
+  const sum = rows.reduce((s, r) => s + Number((r.querySelector('.split-amount') && r.querySelector('.split-amount').value) || 0), 0);
+  const remaining = Math.max(0, (max - sum));
+  const el = getById('splitSummary');
+  if(el) el.textContent = `Total split amount: $${sum.toFixed(2)} • Remaining after splits: $${remaining.toFixed(2)} (invoice remaining $${max.toFixed(2)})`;
+}
+document.getElementById('splitRows').addEventListener('input', (e)=>{ if(e.target.classList.contains('split-amount')) updateSplitSummary(); });
+
+/* Confirm payment handling (records employee fields when present)
+   Updated so modal closes, inbox re-renders, and fully settled invoices are marked Paid.
+*/
+getById('payModalCancel').addEventListener('click', ()=> closePaymentModal());
+
+getById('payModalConfirm').addEventListener('click', () => {
+  if (!_currentSettle) return;
+  const inv = invoices.find(i => i.id === _currentSettle.id);
+  if (!inv) return;
+
+  // SPLIT mode handling
+  if (getById('splitMode').checked) {
+    const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
+    if (rows.length === 0) { alert('Add at least one split line'); return; }
+    const max = Number(inv.balanceRemaining || inv.amount || 0);
+    const payload = rows.map(r => {
+      const type = r.querySelector('.split-type')?.value || 'pay';
+      const empId = r.querySelector('.split-emp-id')?.value.trim() || '';
+      const empName = r.querySelector('.split-emp-name')?.value.trim() || '';
+      return {
+        amount: Number(r.querySelector('.split-amount')?.value || 0),
+        type,
+        date: r.querySelector('.split-date')?.value || new Date().toISOString().slice(0,10),
+        method: r.querySelector('.split-method')?.value || 'Bank transfer',
+        ref: r.querySelector('.split-ref')?.value.trim() || '',
+        note: '',
+        employeeId: type === 'reimburse' ? empId : '',
+        employeeName: type === 'reimburse' ? empName : '',
+        vendorName: inv.vendor || ''
+      };
+    });
+
+    const total = payload.reduce((s, p) => s + Number(p.amount || 0), 0);
+    if (total <= 0) { alert('Enter valid amounts for split lines'); return; }
+    if (total > max + 0.0001) { alert('Total split amount cannot exceed remaining balance: $' + max.toFixed(2)); return; }
+
+    if (getById('scheduleSplit').checked) {
+      inv.scheduledPayments = inv.scheduledPayments || [];
+      payload.forEach(p => inv.scheduledPayments.push(Object.assign({}, p, { scheduledAt: new Date().toLocaleString() })));
+      inv.history = (inv.history || []).concat([`Scheduled ${payload.length} split payment line(s) • ${new Date().toLocaleString()}`]);
+      closePaymentModal(); renderInbox(); alert('Split payments scheduled (demo).'); return;
+    }
+
+    payload.forEach(p => {
+      inv.paymentRecords = inv.paymentRecords || [];
+      inv.paymentRecords.push({
+        amount: Number(p.amount),
+        date: p.date,
+        method: p.method,
+        ref: p.ref,
+        note: p.note,
+        type: p.type,
+        employeeId: p.employeeId || '',
+        employeeName: p.employeeName || '',
+        vendorName: p.vendorName || '',
+        by: 'Assistant (demo)'
+      });
+      inv.balanceRemaining = Number((Number(inv.balanceRemaining || inv.amount || 0) - Number(p.amount)).toFixed(2));
+      if (inv.balanceRemaining < 0) inv.balanceRemaining = 0;
+      inv.history = (inv.history || []).concat([`${p.type === 'reimburse' ? 'Reimbursed' : 'Paid'} ${'$' + Number(p.amount).toFixed(2)} • ${new Date().toLocaleString()} (${p.ref || 'no ref'})`]);
+    });
+
+    // set paid/partial flags and mark completed if fully paid
+    if (inv.balanceRemaining <= 0) {
+      inv.paymentStatus = 'paid';
+      inv.balanceRemaining = 0;
+      inv.archivedCompleted = true;
+      inv.history = (inv.history || []).concat([`Settled • ${new Date().toLocaleString()}`]);
+    } else {
+      inv.paymentStatus = 'partial';
+    }
+
+    closePaymentModal();
+    renderInbox();
+    alert('Recorded split payment lines for ' + inv.number + ' (demo).');
+    return;
+  }
+
+  // SINGLE mode
+  const amt = Number(getById('payAmount').value || 0);
+  const max = Number(inv.balanceRemaining || inv.amount || 0);
+  if (isNaN(amt) || amt <= 0) { alert('Enter a valid amount'); return; }
+  if (amt > max + 0.0001) { alert('Amount cannot exceed remaining balance: $' + max.toFixed(2)); return; }
+  const type = getById('payType').value;
+  const date = getById('payDate').value || new Date().toISOString().slice(0,10);
+  const method = getById('payMethod').value;
+  const ref = getById('payRef').value.trim();
+  const note = getById('payNote').value.trim();
+  const employeeId = (type === 'reimburse') ? (getById('payEmployeeId') ? getById('payEmployeeId').value.trim() : '') : '';
+  const employeeName = (type === 'reimburse') ? (getById('payEmployeeName') ? getById('payEmployeeName').value.trim() : '') : '';
+
+  if (getById('schedulePayment').checked) {
+    inv.scheduledPayments = inv.scheduledPayments || [];
+    inv.scheduledPayments.push({ amount: amt, date, method, ref, note, type, employeeId, employeeName, scheduledAt: new Date().toLocaleString() });
+    inv.history = (inv.history || []).concat([`Scheduled ${type === 'reimburse' ? 'reimbursement' : 'payment'} ${'$' + amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`]);
+    closePaymentModal(); renderInbox(); alert('Payment scheduled (demo).'); return;
+  }
+
+  // Record the payment
+  inv.paymentRecords = inv.paymentRecords || [];
+  inv.paymentRecords.push({
+    amount: amt,
+    date,
+    method,
+    ref,
+    note,
+    type,
+    employeeId: employeeId || '',
+    employeeName: employeeName || '',
+    vendorName: inv.vendor || '',
+    by: 'Assistant (demo)'
+  });
+
+  // Update remaining balance and history
+  inv.balanceRemaining = Number((Number(inv.balanceRemaining || inv.amount || 0) - amt).toFixed(2));
+  if (inv.balanceRemaining < 0) inv.balanceRemaining = 0;
+
+  if (inv.balanceRemaining <= 0) {
+    // fully paid: mark paid and completed
+    inv.paymentStatus = (type === 'reimburse') ? 'reimbursed' : 'paid';
+    inv.balanceRemaining = 0;
+    inv.archivedCompleted = true;
+    inv.history = (inv.history || []).concat([`${type === 'reimburse' ? 'Reimbursed' : 'Paid'} ${'$' + amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`, `Settled • ${new Date().toLocaleString()}`]);
+  } else {
+    // partial payment
+    inv.paymentStatus = 'partial';
+    inv.history = (inv.history || []).concat([`Partial payment ${'$' + amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`]);
+  }
+
+  closePaymentModal();
+  renderInbox();
+  alert((amt > 0 ? ('$' + amt.toFixed(2)) : '') + ' recorded for ' + inv.number + ' (demo).');
+});
 </script>
 </body>
 </html>
-
