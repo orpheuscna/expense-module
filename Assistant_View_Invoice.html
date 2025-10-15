@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -18,7 +18,7 @@
   .small{font-size:13px;color:var(--muted)}
   .fld {margin-bottom:8px}
   .fld label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}
-  .fld input, .fld select, .fld textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef6;font-size:14px}
+  .fld input, .fld select, .fld textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef6;font-size:14px;background:#fff}
   .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
   .upload-neutral{background:transparent;color:var(--navy);padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;border:0}
   table.line-items{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
@@ -38,6 +38,10 @@
   .btn-secondary { background:#e2e8f0; }
   .link-docs { display:flex; gap:8px; align-items:center; margin-top:6px; }
   .link-docs select { flex:1; padding:10px; border-radius:8px; border:1px solid #e6eef6; font-size:14px; }
+
+  /* Right details background fix */
+  .details { background: #fff; display:flex; flex-direction:column; min-height:0; overflow:auto; }
+  .details-inner { padding:12px 16px; display:flex; flex-direction:column; gap:10px; min-height:0; overflow:auto; background:#fff; }
 
   /* modal */
   .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:800}
@@ -149,7 +153,7 @@
   </div>
 
   <!-- Right: Details -->
-  <div style="padding:0;display:flex;flex-direction:column;overflow:auto" role="region" aria-label="Invoice details">
+  <div class="details" role="region" aria-label="Invoice details">
     <div style="padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center">
       <div style="display:flex;flex-direction:column">
         <div style="font-weight:800" id="detailInvId">INV-xxxx</div>
@@ -161,7 +165,7 @@
       </div>
     </div>
 
-    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-height:0;overflow:auto">
+    <div class="details-inner">
       <div class="fld">
         <label for="vendorFld">Vendor</label>
         <div style="display:flex;gap:8px;align-items:center">
@@ -259,6 +263,28 @@
         <div class="support-list" id="supportList" aria-live="polite" style="margin-top:8px"></div>
       </div>
 
+      <!-- Payment destination control + conditional Reimburse fields (new) -->
+      <div style="margin-top:10px; border-top:1px solid #eef4ff; padding-top:10px;">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-weight:700">Payment destination</div>
+          <label class="small" style="display:inline-flex;align-items:center;gap:6px"><input id="payVendorRd" name="payDest" type="radio" checked /> <span>Pay vendor</span></label>
+          <label class="small" style="display:inline-flex;align-items:center;gap:6px"><input id="reimburseRd" name="payDest" type="radio" /> <span>Reimburse employee</span></label>
+        </div>
+
+        <div id="employeeBlock" style="margin-top:10px; display:none; gap:8px; align-items:center;">
+          <div style="display:flex;gap:8px;width:100%;align-items:flex-start">
+            <div style="flex:0 0 180px" class="fld">
+              <label for="employeeIdFld">Reimburse to (Employee ID)</label>
+              <input id="employeeIdFld" />
+            </div>
+            <div style="flex:1" class="fld">
+              <label for="employeeNameFld">Reimburse to (Employee name)</label>
+              <input id="employeeNameFld" placeholder="Who should receive reimbursement" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="fld">
         <label for="notesFld">Notes</label>
         <textarea id="notesFld" rows="3"></textarea>
@@ -312,7 +338,11 @@
         { name: 'PaymentRequest_INV-2025-001.pdf', type: 'Payment Request' },
         { name: 'PaymentOrder_INV-2025-001.pdf', type: 'Payment Order' }
       ],
-      notes: 'Missing delivery slip'
+      notes: 'Missing delivery slip',
+      // optional fields for demo
+      paymentDestination: 'vendor', // 'vendor' or 'reimburse'
+      employeeId: '',
+      employeeName: ''
     }
   };
 
@@ -421,6 +451,23 @@
       appendSupportItem(supportList, id, info);
     });
 
+    // Payment destination and employee fields
+    const pd = data.paymentDestination || 'vendor';
+    if(pd === 'reimburse'){
+      document.getElementById('reimburseRd').checked = true;
+      document.getElementById('payVendorRd').checked = false;
+      showEmployeeBlock(true);
+    } else {
+      document.getElementById('payVendorRd').checked = true;
+      document.getElementById('reimburseRd').checked = false;
+      showEmployeeBlock(false);
+    }
+
+    // PREFILL with random demo employee values (as requested)
+    // These will show when employee block is visible
+    document.getElementById('employeeIdFld').value = data.employeeId || 'EMP-4092';
+    document.getElementById('employeeNameFld').value = data.employeeName || 'Linh Tran';
+
     updateViewAttached(); computeTotals();
   }
 
@@ -442,6 +489,13 @@
     document.getElementById('viewTotalTax').textContent = fmtMoney(totalTax);
     document.getElementById('viewGrandTotal').textContent = fmtMoney(grand);
     return { subtotal, totalTax, grand };
+  }
+
+  // show/hide employee block
+  function showEmployeeBlock(show){
+    const el = document.getElementById('employeeBlock');
+    if(!el) return;
+    el.style.display = show ? 'block' : 'none';
   }
 
   // attach files by selected type (upload)
@@ -470,7 +524,6 @@
     const sel = document.getElementById('linkedDocSelect');
     const val = sel.value;
     if(!val){ alert('Choose a document to link.'); return; }
-    // value format: "filename|type"
     const [name, typeRaw] = val.split('|');
     const type = typeRaw || 'Other documents';
     const id = 'linked-' + Date.now();
@@ -559,10 +612,23 @@
     document.getElementById('viewAttached').textContent = 'Attached: ' + (names.length ? names.join(', ') : '—');
   }
 
+  // Payment destination UI wiring
+  document.getElementById('payVendorRd').addEventListener('change', ()=> {
+    if(document.getElementById('payVendorRd').checked) {
+      showEmployeeBlock(false);
+    }
+  });
+  document.getElementById('reimburseRd').addEventListener('change', ()=> {
+    if(document.getElementById('reimburseRd').checked) {
+      showEmployeeBlock(true);
+      document.getElementById('employeeNameFld').focus();
+    }
+  });
+
   // utility bindings
   document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='Assistant_Invoice_Management.html');
   document.getElementById('closePanelFooter')?.addEventListener('click', ()=> window.location.href='Assistant_Invoice_Management.html');
-  document.getElementById('addLine').addEventListener('click', ()=>{
+  document.getElementById('addLine').addEventListener('click', ()=> {
     const tbody=document.querySelector('#lineItemsTable tbody');
     const idx=tbody.querySelectorAll('tr').length+1;
     const tr=document.createElement('tr'); tr.dataset.line=idx;
@@ -586,19 +652,66 @@
     alert('Draft saved (demo).');
     window.location.href = 'Assistant_Invoice_Management.html';
   });
+
+  // Augmented Submit to Director: persist paymentDestination and employee info to INVOICE_DB (demo)
   document.getElementById('submitToDirector').addEventListener('click', ()=> {
+    const empId = document.getElementById('employeeIdFld').value.trim();
+    const empName = document.getElementById('employeeNameFld').value.trim();
+    const paymentDest = document.getElementById('reimburseRd').checked ? 'reimburse' : 'vendor';
+
+    // validation: if reimburse selected require employee name
+    if(paymentDest === 'reimburse' && !empName){
+      alert('Please enter the employee name for reimbursement before submitting.');
+      document.getElementById('employeeNameFld').focus();
+      return;
+    }
+
     alert('Submitted to Director (demo).');
     document.getElementById('panelStatus').textContent='Submitted';
+    try {
+      const invKey = getQueryParam('inv') || 'INV-2025-001';
+      const inv = INVOICE_DB[invKey];
+      if(inv){
+        const empNote = empId || empName ? ` • Reimburse to: ${empId || ''}${(empId && empName)?' / ':''}${empName || ''}` : '';
+        inv.history = (inv.history||[]).concat([`Submitted to Director • Payment destination: ${paymentDest}${empNote} • ${new Date().toLocaleString()}`]);
+        inv.paymentDestination = paymentDest;
+        if(empId) inv.employeeId = empId;
+        if(empName) inv.employeeName = empName;
+      }
+    } catch(e){}
     window.location.href = 'Assistant_Invoice_Management.html';
   });
+
+  // Submit panel (bottom) augmented to include employee info in history and validation
   document.getElementById('submitPanel').addEventListener('click', ()=> {
     const { grand } = computeTotals();
     const invoiceTotal = parseMoney(document.getElementById('totalFld').value);
     if(Math.abs(invoiceTotal - grand) > 0.005){ if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return; }
+
+    const empId = document.getElementById('employeeIdFld').value.trim();
+    const empName = document.getElementById('employeeNameFld').value.trim();
+    const paymentDest = document.getElementById('reimburseRd').checked ? 'reimburse' : 'vendor';
+    if(paymentDest === 'reimburse' && !empName){
+      alert('Please enter the employee name for reimbursement before submitting.');
+      document.getElementById('employeeNameFld').focus();
+      return;
+    }
+
+    try {
+      const invKey = getQueryParam('inv') || 'INV-2025-001';
+      const inv = INVOICE_DB[invKey];
+      if(inv){
+        const empNote = empId || empName ? ` • Reimburse to: ${empId || ''}${(empId && empName)?' / ':''}${empName || ''}` : '';
+        inv.history = (inv.history||[]).concat([`Submitted to Director • Payment destination: ${paymentDest}${empNote} • ${new Date().toLocaleString()}`]);
+        inv.paymentDestination = paymentDest;
+        if(empId) inv.employeeId = empId;
+        if(empName) inv.employeeName = empName;
+      }
+    } catch(e){}
     alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; window.location.href='Assistant_Invoice_Management.html';
   });
 
-  // init: register initial attachments and populate
+  // initialize page
   (function init(){
     const inv = getQueryParam('inv') || 'INV-2025-001';
     const data = loadInvoiceById(inv);
@@ -611,6 +724,15 @@
     });
     populatePage(data);
   })();
+
+  // Expose small helper for other pages if needed
+  window.getInvoiceEmployeeRef = function(invKey){
+    try{
+      const inv = INVOICE_DB[invKey || (getQueryParam('inv') || 'INV-2025-001')];
+      return { paymentDestination: inv?.paymentDestination || 'vendor', id: inv?.employeeId || '', name: inv?.employeeName || '' };
+    }catch(e){ return {paymentDestination:'vendor', id:'', name:''}; }
+  };
 </script>
 </body>
 </html>
+```
