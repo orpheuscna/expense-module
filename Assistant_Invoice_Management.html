@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="asset-version" content="2025-10-15-2" />
+<meta name="asset-version" content="2025-10-16-1" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Invoice Management — Completed Filter & Tags (Demo Payments Seeded)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -66,7 +66,10 @@
   .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
   .progress-bar{transition:width .3s linear}
   .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:600}
-  .modal{width:680px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3);max-width:92vw;min-width:320px;box-sizing:border-box;position:relative}
+  /* Modal layout tweaks for viewport-safe scrolling */
+  .modal{width:920px;background:#fff;border-radius:12px;padding:12px;box-shadow:0 20px 60px rgba(2,6,23,0.3);max-width:96vw;box-sizing:border-box;display:flex;flex-direction:column;max-height:calc(100vh - 48px);overflow:hidden}
+  .modal-body{overflow:auto;padding-right:8px;flex:1 1 auto}
+  .modal-footer{flex:0 0 auto;display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid #eef4ff;margin-top:12px}
   .split-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
   .split-row .small { font-size:12px;color:var(--muted) }
   .split-row input, .split-row select{padding:6px;border-radius:6px;border:1px solid #e6eef6}
@@ -77,11 +80,22 @@
   .split-ref{flex:1 1 120px;min-width:80px}
   .split-actions{width:60px;text-align:center}
   .muted-inline{font-size:13px;color:var(--muted);margin-top:6px}
+  @media (max-width:900px){ .modal { width: 92vw; } .modal-body > .grid { display:block; } .modal-body .grid > div { width:100%; } }
   @media (max-width:540px){
     .split-row input, .split-row select{ padding:6px 6px; font-size:13px; }
     .split-amount{ flex-basis:95px; }
   }
   .hidden{display:none}
+  /* manual modal specific */
+  .link-docs { display:flex; gap:8px; align-items:center; margin-top:6px; }
+  .link-docs select, .link-docs input[type=file] { flex:1; padding:10px; border-radius:8px; border:1px solid #e6eef6; font-size:14px; background:#fff; }
+  .support-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .support-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px dashed #eef4ff;border-radius:8px;background:#fff}
+  .support-item .meta { display:flex; flex-direction:column; gap:4px; max-width:70% }
+  .support-item .meta > .filename { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .small-muted{color:var(--muted);font-size:13px}
+  /* cap support list height within modal */
+  #mSupportList { max-height: 36vh; overflow:auto; }
 </style>
 <!-- SheetJS for XLSX export -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/shim.min.js"></script>
@@ -95,6 +109,7 @@
       <button id="newUpload" class="tool-btn">New Upload</button>
       <button id="bulkUpload" class="tool-btn">Bulk Upload</button>
       <button id="scanUpload" class="tool-btn">Scan to Upload</button>
+      <button id="newManual" class="tool-btn">New Manual Invoice</button>
     </div>
   </div>
 
@@ -157,8 +172,138 @@
   <button id="exportXlsxBtn" class="btn btn-outline">Download XLSX</button>
 
   <div style="flex:1"></div>
-  <div class="muted-inline" style="margin-top:8px"></div>
+  <div class="muted-inline" style="margin-top:8px">Exported data will download as CSV or XLSX and include employee columns.</div>
 </div>
+  </div>
+</div>
+
+<!-- Manual invoice modal (updated UI) -->
+<div id="manualModalBackdrop" class="modal-backdrop" aria-hidden="true" style="display:none;align-items:center;justify-content:center;z-index:700">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manualModalTitle" style="max-width:920px; width:92%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div><div id="manualModalTitle" style="font-weight:800">Create manual invoice</div><div class="small" style="color:var(--muted)">Fill required fields and attach supporting documents</div></div>
+      <div><button id="manualClose" class="btn btn-outline">✕</button></div>
+    </div>
+
+    <div class="modal-body">
+      <div class="grid" style="display:grid;grid-template-columns:1fr 420px;gap:12px">
+        <div>
+          <div style="display:flex;gap:12px">
+            <div style="flex:1" class="field">
+              <label class="compact">Vendor</label>
+              <input id="mVendor" class="input" placeholder="ACME Supplies Co." />
+            </div>
+            <div style="width:160px" class="field">
+              <label class="compact">Invoice Date</label>
+              <input id="mDate" type="date" class="input" />
+            </div>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:flex-end">
+            <div style="flex:1" class="field">
+              <label class="compact">Invoice number</label>
+              <input id="mNumber" class="input" placeholder="INV-2025-001" />
+            </div>
+            <div style="width:180px" class="field">
+              <label class="compact">Total</label>
+              <input id="mTotal" class="input" placeholder="$0.00" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="compact">Category</label>
+            <select id="mCategory" class="filter">
+              <option>Office Supplies</option><option>Travel</option><option>Rent</option><option>Entertainment</option><option>Consulting</option><option>Logistics</option><option>Maintenance</option>
+            </select>
+          </div>
+
+          <div style="margin-top:8px;font-weight:700">Line items</div>
+          <table class="line-items" id="mLineItemsTable" aria-label="Manual line items">
+            <thead>
+              <tr><th style="width:48%">Description</th><th style="width:12%">Qty</th><th style="width:13%">Unit</th><th style="width:13%">Tax</th><th style="width:14%">Amount</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <div class="small-muted">Totals recalc automatically when quantity or unit price changes</div>
+            <div style="display:flex;gap:8px">
+              <button id="mAddLine" class="action-btn">Add line</button>
+              <button id="mRecalc" class="upload-neutral">Recalculate</button>
+            </div>
+          </div>
+
+          <div class="totals-block" style="margin-top:12px">
+            <div class="totals-inner" style="width:320px">
+              <div style="display:flex;justify-content:space-between"><div class="small-muted">Subtotal</div><div id="mSubtotal" style="font-weight:800">$0.00</div></div>
+              <div style="display:flex;justify-content:space-between;margin-top:6px"><div class="small-muted">Total Tax</div><div id="mTotalTax" style="font-weight:800">$0.00</div></div>
+              <div style="border-top:1px solid #eef4ff;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:900">Grand Total</div><div id="mGrandTotal" style="font-weight:900">$0.00</div></div>
+              <div id="mTotalMismatch" style="color:#b45309;font-size:13px;margin-top:6px;display:none">Calculated total does not match entered total. Please verify.</div>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:10px">
+            <label class="compact">Notes</label>
+            <textarea id="mNote" class="input" rows="3" placeholder="Missing delivery slip"></textarea>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700">Supporting documents</div>
+            <div class="small">Upload or link system doc</div>
+          </div>
+
+          <div class="link-docs" style="margin-top:8px">
+            <select id="mPaymentTypeSelect">
+              <option value="">Select type</option>
+              <option value="Payment Request">Payment Request</option>
+              <option value="Payment Order">Payment Order</option>
+              <option value="Other documents">Other documents</option>
+            </select>
+            <input id="mPaymentUploadSelect" type="file" multiple />
+            <button id="mAttachTypeBtn" class="action-btn">Attach</button>
+          </div>
+
+          <div class="link-docs" style="margin-top:8px">
+            <select id="mLinkedDocSelect">
+              <option value="">Select existing system document to link</option>
+              <option value="INV-2025-001.pdf|Payment Request">INV-2025-001.pdf</option>
+              <option value="Payment Receipt - INV-2025-001.pdf|Payment Request">Payment Receipt - INV-2025-001.pdf</option>
+              <option value="Payment-Order_INV-2025-001.pdf|Payment Order">Payment-Order_INV-2025-001.pdf</option>
+            </select>
+            <button id="mLinkDocBtn" class="action-btn">Link</button>
+          </div>
+
+          <div style="margin-top:8px">
+            <div class="small-muted">Linked files appear below with View / Download / Remove options.</div>
+          </div>
+
+          <div class="support-list" id="mSupportList" aria-live="polite" style="margin-top:12px"></div>
+
+          <div style="margin-top:16px;border-top:1px solid #eef4ff;padding-top:12px">
+            <div style="font-weight:700;margin-bottom:6px">Payment destination</div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <label class="small"><input id="mPayVendorRd" name="mPayDest" type="radio" checked /> Pay vendor</label>
+              <label class="small"><input id="mReimburseRd" name="mPayDest" type="radio" /> Reimburse employee</label>
+            </div>
+
+            <div id="mEmployeeBlock" style="margin-top:8px;display:none">
+              <div class="field"><label class="compact">Employee ID</label><input id="mEmployeeId" class="input" /></div>
+              <div class="field"><label class="compact">Employee name</label><input id="mEmployeeName" class="input" /></div>
+            </div>
+
+            <div class="small-muted" style="margin-top:8px">Missing delivery slip</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button id="manualCancel" class="btn btn-outline">Cancel</button>
+      <button id="manualSaveDraft" class="action-btn">Save draft</button>
+      <button id="manualSave" class="btn btn-primary">Create invoice</button>
+    </div>
   </div>
 </div>
 
@@ -479,7 +624,7 @@ function renderInbox(){
       }
 
       if((inv.status === 'approved_electronic' || inv.status === 'approved_physical' || inv.status === 'rejected') && !getById('showCompleted').checked){
-        const btnCompleted = document.createElement('button'); btnCompleted.className='btn mark-completed'; btnCompleted.type='button'; btnCompleted.dataset.id=inv.id; btnCompleted.textContent='Mark as Completed';
+        const btnCompleted = document.createElement('button'); btnCompleted.className = 'btn mark-completed'; btnCompleted.type='button'; btnCompleted.dataset.id=inv.id; btnCompleted.textContent='Mark as Completed';
         tdActions.appendChild(btnCompleted);
       }
     }
@@ -573,6 +718,246 @@ function closeDetail(){
   const panel = getById('detailPanel');
   if(panel) panel.style.display = 'none';
 }
+
+/* Manual invoice modal wiring (enhanced UI) */
+(function(){
+  const openBtn = getById('newManual');
+  const supportRegistry = {}; // temp attachments per modal
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]);}
+  function parseMoney(v){ if(typeof v!=='string') v = String(v||''); v = v.replace(/[^\d.\-]/g,''); const n=parseFloat(v); return Number.isFinite(n)?n:0; }
+  function fmtMoney(n){ return '$'+Number(n||0).toFixed(2); }
+
+  function openManualModal(){
+    const b = getById('manualModalBackdrop');
+    if(!b) return;
+    // reset fields
+    getById('mVendor').value = '';
+    getById('mNumber').value = '';
+    getById('mDate').value = new Date().toISOString().slice(0,10);
+    getById('mTotal').value = '';
+    getById('mCategory').value = 'Office Supplies';
+    getById('mNote').value = 'Missing delivery slip';
+    getById('mEmployeeBlock').style.display = 'none';
+    getById('mEmployeeId').value = ''; getById('mEmployeeName').value = '';
+
+    // clear lines and seed two example lines
+    const tbody = getById('mLineItemsTable').querySelector('tbody'); tbody.innerHTML = '';
+    addManualLine({desc:'Printer paper A4', qty:1, unit:75.00, tax:0.00});
+    addManualLine({desc:'toner cartridge', qty:1, unit:255.00, tax:0.00});
+    computeManualTotals();
+
+    // clear support list
+    const sl = getById('mSupportList'); sl.innerHTML = '';
+    Object.keys(supportRegistry).forEach(k=>delete supportRegistry[k]);
+
+    b.style.display = 'flex'; b.setAttribute('aria-hidden','false');
+
+    // ensure modal body scroll starts at top and receives focus
+    const bodyEl = document.querySelector('#manualModalBackdrop .modal .modal-body');
+    if(bodyEl){ bodyEl.scrollTop = 0; bodyEl.focus && bodyEl.focus(); }
+  }
+
+  function closeManualModal(){ const b=getById('manualModalBackdrop'); if(!b) return; b.style.display='none'; b.setAttribute('aria-hidden','true'); }
+
+  function addManualLine(data){
+    const tbody = getById('mLineItemsTable').querySelector('tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><input value="${escapeHtml(data.desc||'')}"></td>
+                    <td><input value="${data.qty!=null?data.qty:1}"></td>
+                    <td><input value="${fmtMoney(data.unit!=null?data.unit:0)}"></td>
+                    <td><input value="${fmtMoney(data.tax!=null?data.tax:0)}"></td>
+                    <td><input value="${fmtMoney(((data.qty||0)*(data.unit||0)) + (data.tax||0))}"></td>`;
+    tbody.appendChild(tr);
+
+    const inputs = tr.querySelectorAll('input');
+    inputs.forEach(i=> i.addEventListener('input', ()=> {
+      const q = parseMoney(tr.cells[1].querySelector('input').value);
+      const up = parseMoney(tr.cells[2].querySelector('input').value);
+      const tax = parseMoney(tr.cells[3].querySelector('input').value);
+      const amt = (q * up) + tax;
+      tr.cells[4].querySelector('input').value = fmtMoney(amt);
+      computeManualTotals();
+    }));
+  }
+
+  function computeManualTotals(){
+    const rows = getById('mLineItemsTable').querySelectorAll('tbody tr');
+    let subtotal=0,totalTax=0,grand=0;
+    rows.forEach(r=>{
+      const q=parseMoney(r.cells[1].querySelector('input').value);
+      const up=parseMoney(r.cells[2].querySelector('input').value);
+      const tax=parseMoney(r.cells[3].querySelector('input').value);
+      const lineBeforeTax = q * up;
+      const lineAfterTax = lineBeforeTax + tax;
+      subtotal += lineBeforeTax; totalTax += tax; grand += lineAfterTax;
+    });
+    getById('mSubtotal').textContent = fmtMoney(subtotal);
+    getById('mTotalTax').textContent = fmtMoney(totalTax);
+    getById('mGrandTotal').textContent = fmtMoney(grand);
+    const entered = parseMoney(getById('mTotal').value);
+    const mismatchEl = getById('mTotalMismatch');
+    if(!isFinite(entered) || Math.abs(entered - grand) > 0.005) mismatchEl.style.display='block'; else mismatchEl.style.display='none';
+    return {subtotal,totalTax,grand};
+  }
+
+  // wire add line and recalc
+  getById('mAddLine').addEventListener('click', ()=> addManualLine({desc:'',qty:1,unit:0,tax:0}));
+  getById('mRecalc').addEventListener('click', ()=> {
+    const rows = getById('mLineItemsTable').querySelectorAll('tbody tr');
+    rows.forEach(r=>{
+      const q=parseMoney(r.cells[1].querySelector('input').value);
+      const up=parseMoney(r.cells[2].querySelector('input').value);
+      const tax=parseMoney(r.cells[3].querySelector('input').value);
+      const amt=(q*up)+tax;
+      r.cells[4].querySelector('input').value = fmtMoney(amt);
+    });
+    computeManualTotals(); alert('Line totals recalculated (demo).');
+  });
+
+  // attachments
+  getById('mAttachTypeBtn').addEventListener('click', ()=> {
+    const typeSel = getById('mPaymentTypeSelect'); const filesInput = getById('mPaymentUploadSelect');
+    const chosenType = typeSel.value;
+    if(!chosenType){ alert('Please select a type first.'); return; }
+    if(!filesInput.files || filesInput.files.length === 0){ alert('Please choose files to upload.'); return; }
+    Array.from(filesInput.files).forEach((f,i)=>{
+      const id = 'mup-' + (Date.now() + i);
+      const info = { name: f.name, type: chosenType, size: f.size || 2048, contentHtml: `<div style="padding:8px"><strong>${escapeHtml(f.name)}</strong></div>` };
+      supportRegistry[id] = info;
+      appendManualSupport(id, info);
+    });
+    filesInput.value=''; typeSel.value=''; updateManualAttached();
+  });
+
+  getById('mLinkDocBtn').addEventListener('click', ()=> {
+    const sel = getById('mLinkedDocSelect'); const val = sel.value;
+    if(!val){ alert('Choose a document to link.'); return; }
+    const [name, typeRaw] = val.split('|'); const type = typeRaw || 'Other documents';
+    const id = 'mlink-' + Date.now();
+    const info = { name, type, size: 1024, contentHtml: `<div style="padding:8px"><strong>${escapeHtml(name)}</strong></div>` };
+    supportRegistry[id] = info;
+    appendManualSupport(id, info);
+    sel.value = ''; updateManualAttached();
+  });
+
+  function appendManualSupport(id, info){
+    const container = getById('mSupportList');
+    const item = document.createElement('div');
+    item.className = 'support-item';
+    item.dataset.fileid = id;
+    item.innerHTML = `<div class="meta"><div class="filename">${escapeHtml(info.name)}</div><div class="tag small">${escapeHtml(info.type)} • ${Math.round((info.size||0)/1024)} KB</div></div>
+      <div style="display:flex;gap:8px">
+        <button class="action-btn view-support" data-fileid="${id}">View</button>
+        <button class="action-btn download-support" data-fileid="${id}">Download</button>
+        <button class="action-btn remove-support" data-fileid="${id}">Remove</button>
+      </div>`;
+    container.appendChild(item);
+  }
+
+  getById('mSupportList').addEventListener('click', function(e){
+    const v = e.target.closest('.view-support');
+    const d = e.target.closest('.download-support');
+    const r = e.target.closest('.remove-support');
+    if(v){ const id=v.dataset.fileid; openManualPreview(id); }
+    if(d){ const id=d.dataset.fileid; const info = supportRegistry[id]; alert('Download (demo): ' + (info?info.name:id)); }
+    if(r){ const id=r.dataset.fileid; if(confirm('Remove this document?')){ delete supportRegistry[id]; const el=document.querySelector('#mSupportList .support-item[data-fileid="'+id+'"]'); if(el) el.remove(); updateManualAttached(); } }
+  });
+
+  function openManualPreview(id){
+    const info = supportRegistry[id];
+    if(!info){ alert('No preview available'); return; }
+    if(document.getElementById('modalPreview')){
+      document.getElementById('previewTitle').textContent = info.name;
+      document.getElementById('previewContent').innerHTML = info.contentHtml;
+      document.getElementById('previewMeta').textContent = info.type + ' • ' + Math.round((info.size||0)/1024) + ' KB';
+      document.getElementById('modalPreview').style.display='flex';
+      document.getElementById('modalPreview').setAttribute('aria-hidden','false');
+      return;
+    }
+    alert('Preview (demo): ' + info.name);
+  }
+  function updateManualAttached(){ /* UI already updated by append/remove */ }
+
+  // Save draft
+  getById('manualSaveDraft').addEventListener('click', ()=> {
+    try{
+      const newInv = buildManualInvoiceObject('draft');
+      invoices.unshift(newInv);
+      alert('Draft created (demo): ' + newInv.number);
+      closeManualModal();
+      renderInbox();
+    }catch(e){ alert('Failed to create draft: '+e.message); }
+  });
+
+  // Create invoice
+  getById('manualSave').addEventListener('click', ()=> {
+    try{
+      const newInv = buildManualInvoiceObject('pending_review');
+      invoices.unshift(newInv);
+      alert('Manual invoice created (demo): ' + newInv.number);
+      closeManualModal();
+      renderInbox();
+    }catch(e){ alert(e.message); }
+  });
+
+  // Cancel / Close
+  getById('manualCancel').addEventListener('click', closeManualModal);
+  getById('manualClose').addEventListener('click', closeManualModal);
+
+  // payment destination toggle
+  getById('mPayVendorRd').addEventListener('change', ()=> { if(getById('mPayVendorRd').checked) getById('mEmployeeBlock').style.display='none'; });
+  getById('mReimburseRd').addEventListener('change', ()=> { if(getById('mReimburseRd').checked) getById('mEmployeeBlock').style.display='block'; });
+
+  function buildManualInvoiceObject(status){
+    const vendor = (getById('mVendor').value||'').trim();
+    const number = (getById('mNumber').value||'').trim();
+    const date = getById('mDate').value || new Date().toISOString().slice(0,10);
+    const total = parseMoney(getById('mTotal').value || '');
+    const category = (getById('mCategory').value||'').trim();
+    const note = (getById('mNote').value||'').trim();
+    const paymentDest = getById('mReimburseRd').checked ? 'reimburse' : 'vendor';
+    const empId = (getById('mEmployeeId').value||'').trim();
+    const empName = (getById('mEmployeeName').value||'').trim();
+
+    if(!vendor) throw new Error('Please enter vendor');
+    if(!number) throw new Error('Please enter invoice number');
+    if(!date) throw new Error('Please enter invoice date');
+
+    const rows = Array.from(getById('mLineItemsTable').querySelectorAll('tbody tr'));
+    const lines = rows.map(r=>{
+      return {
+        desc: r.cells[0].querySelector('input').value || '',
+        qty: Number(parseMoney(r.cells[1].querySelector('input').value) || 0),
+        unit: Number(parseMoney(r.cells[2].querySelector('input').value) || 0),
+        tax: Number(parseMoney(r.cells[3].querySelector('input').value) || 0)
+      };
+    });
+
+    const calc = computeManualTotals();
+    const amountVal = (isFinite(total) && total > 0) ? total : calc.grand;
+    const id = 'inv-' + Date.now().toString(36);
+    const invObj = {
+      id,
+      vendor,
+      number,
+      date,
+      amount: Number(amountVal.toFixed(2)),
+      balanceRemaining: Number(amountVal.toFixed(2)),
+      status: status,
+      category,
+      items: lines.map(l=>({desc:l.desc, qty:l.qty, price:l.unit})),
+      history: [`Created manually • ${new Date().toLocaleString()}`],
+      attachments: Object.values(supportRegistry).map(s=>({name:s.name,type:s.type})),
+      notes: note,
+      employeeExpense: paymentDest === 'reimburse'
+    };
+    if(paymentDest === 'reimburse'){ invObj.employeeId = empId; invObj.employeeName = empName; }
+    return invObj;
+  }
+
+  if(openBtn) openBtn.addEventListener('click', openManualModal);
+})();
 
 /* DOM ready wiring */
 document.addEventListener('DOMContentLoaded', function(){
@@ -738,8 +1123,6 @@ function closePaymentModal(){
   _currentSettle = null;
 }
 
-/* rest of existing logic unchanged... (pay modal handlers and export wiring below) */
-
 /* pay amount remaining calc */
 getById('payAmount').addEventListener('input', ()=> {
   if(!_currentSettle) return;
@@ -766,6 +1149,8 @@ getById('payType').addEventListener('change', ()=> {
 
 /* utilities */
 function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]);}
+function parseMoney(v){ if(typeof v!=='string') v = String(v||''); v = v.replace(/[^\d.\-]/g,''); const n=parseFloat(v); return Number.isFinite(n)?n:0; }
+function fmtMoney(n){ return '$'+Number(n||0).toFixed(2); }
 
 /* init */
 renderInbox();
@@ -791,7 +1176,7 @@ setInterval(()=> {
     { key: 'paymentDate', header: 'Payment Date' },
     { key: 'vendorName', header: 'Vendor Name' },
     { key: 'employeeId', header: 'Employee ID' },
-    { key: 'employeeName', header: 'Employee Name' }
+        { key: 'employeeName', header: 'Employee Name' }
   ];
 
   function buildExportRows(){
@@ -809,7 +1194,7 @@ setInterval(()=> {
           method: p.method || '',
           ref: p.ref || '',
           paymentDate: p.date || '',
-          vendorName: p.vendor || '',
+          vendorName: inv.vendor || '',
           employeeId: p.employeeId || '',
           employeeName: p.employeeName || ''
         });
@@ -819,16 +1204,16 @@ setInterval(()=> {
   }
 
   function toCsv(rows, columns){
-    const escapeCell = val => {
-      if (val === null || typeof val === 'undefined') return '';
-      const s = String(val);
+    const esc = v => {
+      if (v === null || typeof v === 'undefined') return '';
+      const s = String(v);
       if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
         return '"' + s.replace(/"/g, '""') + '"';
       }
       return s;
     };
-    const header = columns.map(c => escapeCell(c.header)).join(',');
-    const lines = rows.map(r => columns.map(c => escapeCell(r[c.key])).join(','));
+    const header = columns.map(c => esc(c.header)).join(',');
+    const lines = rows.map(r => columns.map(c => esc(r[c.key])).join(','));
     return [header].concat(lines).join('\r\n');
   }
 
@@ -849,18 +1234,21 @@ setInterval(()=> {
   }
 
   function downloadXlsx(rows, columns, filename){
-    // convert rows to objects with header labels as keys
-    const sheetRows = rows.map(r => {
-      const out = {};
-      columns.forEach(c => out[c.header] = r[c.key]);
-      return out;
-    });
-    const ws = XLSX.utils.json_to_sheet(sheetRows, { skipHeader: false });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Payments');
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbout], { type: 'application/octet-stream' });
-    downloadBlob(blob, filename);
+    try {
+      const sheetRows = rows.map(r => {
+        const out = {};
+        columns.forEach(c => out[c.header] = r[c.key]);
+        return out;
+      });
+      const ws = XLSX.utils.json_to_sheet(sheetRows, { skipHeader: false });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Payments');
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      downloadBlob(blob, filename);
+    } catch (err) {
+      alert('XLSX export failed: ' + (err && err.message ? err.message : 'unknown'));
+    }
   }
 
   function wireExportButtons(){
@@ -893,7 +1281,6 @@ setInterval(()=> {
     if (xlsxBtn) xlsxBtn.addEventListener('click', ()=> onExport(true));
   }
 
-  // wire after DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', wireExportButtons);
   } else {
@@ -901,196 +1288,124 @@ setInterval(()=> {
   }
 })();
 
-/* create split row with employee fields */
-function addSplitRow() {
-  const row = document.createElement('div');
-  row.className = 'split-row';
-  row.innerHTML = `
-    <input class="split-amount" type="number" step="0.01" min="0" placeholder="Amount" />
-    <select class="split-type">
-      <option value="pay">Pay vendor</option>
-      <option value="reimburse">Reimburse employee</option>
-    </select>
-    <input class="split-date" type="date" value="${new Date().toISOString().slice(0,10)}" />
-    <select class="split-method">
-      <option>Bank transfer</option><option>Cash</option><option>Card</option><option>Other</option>
-    </select>
-    <input class="split-ref" placeholder="Ref" />
-    <div class="split-employee hidden" style="display:flex;flex-direction:column;min-width:200px">
-      <input class="split-emp-id" placeholder="Employee ID" />
-      <input class="split-emp-name" placeholder="Employee name" style="margin-top:6px" />
-    </div>
-    <button class="btn btn-outline remove-split" type="button">Remove</button>
-  `;
-  const splitRows = getById('splitRows');
-  if(splitRows) splitRows.appendChild(row);
-  updateSplitSummary();
-
-  const typeSelect = row.querySelector('.split-type');
-  const empFields = row.querySelector('.split-employee');
-  if(typeSelect){
-    typeSelect.addEventListener('change', () => {
-      if(typeSelect.value === 'reimburse') empFields.classList.remove('hidden'); else empFields.classList.add('hidden');
-    });
-  }
-}
-const addSplitBtn = getById('addSplitRow');
-if(addSplitBtn) addSplitBtn.addEventListener('click', () => addSplitRow());
-
-getById('splitRows').addEventListener('click', (e)=>{
-  const rem = e.target.closest('.remove-split');
-  if(rem){
-    const row = rem.closest('.split-row');
-    if(row) row.remove();
-    updateSplitSummary();
-  }
-});
-
+/* Split summary updater */
 function updateSplitSummary(){
-  const inv = invoices.find(i=>i.id===(_currentSettle && _currentSettle.id));
-  const max = inv ? Number(inv.balanceRemaining || inv.amount || 0) : 0;
-  const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
-  const sum = rows.reduce((s, r) => s + Number((r.querySelector('.split-amount') && r.querySelector('.split-amount').value) || 0), 0);
-  const remaining = Math.max(0, (max - sum));
-  const el = getById('splitSummary');
-  if(el) el.textContent = `Total split amount: $${sum.toFixed(2)} • Remaining after splits: $${remaining.toFixed(2)} (invoice remaining $${max.toFixed(2)})`;
-}
-document.getElementById('splitRows').addEventListener('input', (e)=>{ if(e.target.classList.contains('split-amount')) updateSplitSummary(); });
-
-/* Confirm payment handling (records employee fields when present)
-   Updated so modal closes, inbox re-renders, and fully settled invoices are marked Paid.
-*/
-getById('payModalCancel').addEventListener('click', ()=> closePaymentModal());
-
-getById('payModalConfirm').addEventListener('click', () => {
-  if (!_currentSettle) return;
-  const inv = invoices.find(i => i.id === _currentSettle.id);
-  if (!inv) return;
-
-  // SPLIT mode handling
-  if (getById('splitMode').checked) {
+  try {
     const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
-    if (rows.length === 0) { alert('Add at least one split line'); return; }
-    const max = Number(inv.balanceRemaining || inv.amount || 0);
-    const payload = rows.map(r => {
-      const type = r.querySelector('.split-type')?.value || 'pay';
-      const empId = r.querySelector('.split-emp-id')?.value.trim() || '';
-      const empName = r.querySelector('.split-emp-name')?.value.trim() || '';
-      return {
-        amount: Number(r.querySelector('.split-amount')?.value || 0),
-        type,
-        date: r.querySelector('.split-date')?.value || new Date().toISOString().slice(0,10),
-        method: r.querySelector('.split-method')?.value || 'Bank transfer',
-        ref: r.querySelector('.split-ref')?.value.trim() || '',
-        note: '',
-        employeeId: type === 'reimburse' ? empId : '',
-        employeeName: type === 'reimburse' ? empName : '',
-        vendorName: inv.vendor || ''
-      };
+    let total = 0;
+    rows.forEach(r=>{
+      const v = r.querySelector('.split-amount');
+      if(!v) return;
+      const n = parseFloat(v.value || 0) || 0;
+      total += n;
     });
+    const sumEl = document.getElementById('splitSummary');
+    if(sumEl) sumEl.textContent = 'Split total: $' + total.toFixed(2);
+  } catch(e){}
+}
 
-    const total = payload.reduce((s, p) => s + Number(p.amount || 0), 0);
-    if (total <= 0) { alert('Enter valid amounts for split lines'); return; }
-    if (total > max + 0.0001) { alert('Total split amount cannot exceed remaining balance: $' + max.toFixed(2)); return; }
-
-    if (getById('scheduleSplit').checked) {
-      inv.scheduledPayments = inv.scheduledPayments || [];
-      payload.forEach(p => inv.scheduledPayments.push(Object.assign({}, p, { scheduledAt: new Date().toLocaleString() })));
-      inv.history = (inv.history || []).concat([`Scheduled ${payload.length} split payment line(s) • ${new Date().toLocaleString()}`]);
-      closePaymentModal(); renderInbox(); alert('Split payments scheduled (demo).'); return;
-    }
-
-    payload.forEach(p => {
-      inv.paymentRecords = inv.paymentRecords || [];
-      inv.paymentRecords.push({
-        amount: Number(p.amount),
-        date: p.date,
-        method: p.method,
-        ref: p.ref,
-        note: p.note,
-        type: p.type,
-        employeeId: p.employeeId || '',
-        employeeName: p.employeeName || '',
-        vendorName: p.vendorName || '',
-        by: 'Assistant (demo)'
-      });
-      inv.balanceRemaining = Number((Number(inv.balanceRemaining || inv.amount || 0) - Number(p.amount)).toFixed(2));
-      if (inv.balanceRemaining < 0) inv.balanceRemaining = 0;
-      inv.history = (inv.history || []).concat([`${p.type === 'reimburse' ? 'Reimbursed' : 'Paid'} ${'$' + Number(p.amount).toFixed(2)} • ${new Date().toLocaleString()} (${p.ref || 'no ref'})`]);
-    });
-
-    // set paid/partial flags and mark completed if fully paid
-    if (inv.balanceRemaining <= 0) {
-      inv.paymentStatus = 'paid';
-      inv.balanceRemaining = 0;
-      inv.archivedCompleted = true;
-      inv.history = (inv.history || []).concat([`Settled • ${new Date().toLocaleString()}`]);
-    } else {
-      inv.paymentStatus = 'partial';
-    }
-
-    closePaymentModal();
-    renderInbox();
-    alert('Recorded split payment lines for ' + inv.number + ' (demo).');
-    return;
-  }
-
-  // SINGLE mode
-  const amt = Number(getById('payAmount').value || 0);
-  const max = Number(inv.balanceRemaining || inv.amount || 0);
-  if (isNaN(amt) || amt <= 0) { alert('Enter a valid amount'); return; }
-  if (amt > max + 0.0001) { alert('Amount cannot exceed remaining balance: $' + max.toFixed(2)); return; }
-  const type = getById('payType').value;
-  const date = getById('payDate').value || new Date().toISOString().slice(0,10);
-  const method = getById('payMethod').value;
-  const ref = getById('payRef').value.trim();
-  const note = getById('payNote').value.trim();
-  const employeeId = (type === 'reimburse') ? (getById('payEmployeeId') ? getById('payEmployeeId').value.trim() : '') : '';
-  const employeeName = (type === 'reimburse') ? (getById('payEmployeeName') ? getById('payEmployeeName').value.trim() : '') : '';
-
-  if (getById('schedulePayment').checked) {
-    inv.scheduledPayments = inv.scheduledPayments || [];
-    inv.scheduledPayments.push({ amount: amt, date, method, ref, note, type, employeeId, employeeName, scheduledAt: new Date().toLocaleString() });
-    inv.history = (inv.history || []).concat([`Scheduled ${type === 'reimburse' ? 'reimbursement' : 'payment'} ${'$' + amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`]);
-    closePaymentModal(); renderInbox(); alert('Payment scheduled (demo).'); return;
-  }
-
-  // Record the payment
-  inv.paymentRecords = inv.paymentRecords || [];
-  inv.paymentRecords.push({
-    amount: amt,
-    date,
-    method,
-    ref,
-    note,
-    type,
-    employeeId: employeeId || '',
-    employeeName: employeeName || '',
-    vendorName: inv.vendor || '',
-    by: 'Assistant (demo)'
+/* Wire split actions */
+(function wireSplitActions(){
+  const addBtn = document.getElementById('addSplitRow');
+  if(!addBtn) return;
+  addBtn.addEventListener('click', ()=>{
+    const container = document.getElementById('splitRows');
+    if(!container) return;
+    const row = document.createElement('div');
+    row.className = 'split-row';
+    row.innerHTML = `
+      <input class="split-amount" type="number" step="0.01" min="0" placeholder="Amount" style="width:120px;padding:6px;border-radius:6px;border:1px solid #e6eef6" />
+      <input class="split-date" type="date" style="padding:6px;border-radius:6px;border:1px solid #e6eef6" />
+      <select class="split-method" style="padding:6px;border-radius:6px;border:1px solid #e6eef6">
+        <option>Bank transfer</option><option>Cash</option><option>Card</option><option>Other</option>
+      </select>
+      <select class="split-type" style="padding:6px;border-radius:6px;border:1px solid #e6eef6">
+        <option value="pay">Pay vendor</option><option value="reimburse">Reimburse employee</option>
+      </select>
+      <input class="split-ref" placeholder="Reference" style="padding:6px;border-radius:6px;border:1px solid #e6eef6" />
+      <button class="btn btn-outline split-remove" type="button" style="margin-left:8px">Remove</button>
+    `;
+    container.appendChild(row);
+    const amt = row.querySelector('.split-amount');
+    if(amt) amt.addEventListener('input', updateSplitSummary);
+    const rem = row.querySelector('.split-remove');
+    if(rem) rem.addEventListener('click', ()=> { row.remove(); updateSplitSummary(); });
+    updateSplitSummary();
   });
+})();
 
-  // Update remaining balance and history
-  inv.balanceRemaining = Number((Number(inv.balanceRemaining || inv.amount || 0) - amt).toFixed(2));
-  if (inv.balanceRemaining < 0) inv.balanceRemaining = 0;
+/* Payment modal confirm handler */
+(function wirePaymentModal(){
+  const cancel = document.getElementById('payModalCancel');
+  const confirm = document.getElementById('payModalConfirm');
+  if(cancel) cancel.addEventListener('click', ()=> {
+    const pb = document.getElementById('paymentModalBackdrop');
+    if(pb) { pb.style.display = 'none'; pb.setAttribute('aria-hidden','true'); }
+    _currentSettle = null;
+  });
+  if(confirm) confirm.addEventListener('click', ()=> {
+    if(!_currentSettle) { 
+      const pb = document.getElementById('paymentModalBackdrop');
+      if(pb) { pb.style.display = 'none'; pb.setAttribute('aria-hidden','true'); }
+      return;
+    }
+    const inv = invoices.find(i=>i.id===_currentSettle.id);
+    if(!inv){ alert('Invoice not found'); const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); } _currentSettle=null; return; }
 
-  if (inv.balanceRemaining <= 0) {
-    // fully paid: mark paid and completed
-    inv.paymentStatus = (type === 'reimburse') ? 'reimbursed' : 'paid';
-    inv.balanceRemaining = 0;
-    inv.archivedCompleted = true;
-    inv.history = (inv.history || []).concat([`${type === 'reimburse' ? 'Reimbursed' : 'Paid'} ${'$' + amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`, `Settled • ${new Date().toLocaleString()}`]);
-  } else {
-    // partial payment
-    inv.paymentStatus = 'partial';
-    inv.history = (inv.history || []).concat([`Partial payment ${'$' + amt.toFixed(2)} • ${new Date().toLocaleString()} (${ref || 'no ref'})`]);
-  }
+    if(document.getElementById('singleMode').checked){
+      const type = (document.getElementById('payType') || {}).value || 'pay';
+      const amount = parseFloat((document.getElementById('payAmount') || {}).value || 0) || 0;
+      const method = (document.getElementById('payMethod') || {}).value || '';
+      const ref = (document.getElementById('payRef') || {}).value || '';
+      const date = (document.getElementById('payDate') || {}).value || new Date().toISOString().slice(0,10);
+      const rec = { type, amount, method, ref, date };
+      if(type === 'reimburse'){ rec.employeeId = (document.getElementById('payEmployeeId') || {}).value || ''; rec.employeeName = (document.getElementById('payEmployeeName') || {}).value || ''; }
+      inv.paymentRecords = inv.paymentRecords || [];
+      inv.paymentRecords.push(rec);
+      inv.balanceRemaining = Math.max(0, (inv.balanceRemaining || inv.amount || 0) - amount);
+      if(inv.balanceRemaining <= 0) inv.archivedCompleted = true;
+      inv.history = (inv.history || []).concat([`Payment recorded • ${new Date().toLocaleString()} • ${amount.toFixed(2)}`]);
+      renderInbox();
+      alert('Payment recorded (demo).');
+      const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); }
+      _currentSettle = null;
+      return;
+    }
 
-  closePaymentModal();
-  renderInbox();
-  alert((amt > 0 ? ('$' + amt.toFixed(2)) : '') + ' recorded for ' + inv.number + ' (demo).');
-});
+    const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
+    if(rows.length === 0){ alert('Add at least one split line'); return; }
+    rows.forEach(r=>{
+      const amount = parseFloat((r.querySelector('.split-amount') || {}).value || 0) || 0;
+      const date = (r.querySelector('.split-date') || {}).value || new Date().toISOString().slice(0,10);
+      const method = (r.querySelector('.split-method') || {}).value || '';
+      const type = (r.querySelector('.split-type') || {}).value || 'pay';
+      const ref = (r.querySelector('.split-ref') || {}).value || '';
+      const rec = { type, amount, method, ref, date };
+      inv.paymentRecords = inv.paymentRecords || [];
+      inv.paymentRecords.push(rec);
+      inv.balanceRemaining = Math.max(0, (inv.balanceRemaining || inv.amount || 0) - amount);
+    });
+    if(inv.balanceRemaining <= 0) inv.archivedCompleted = true;
+    inv.history = (inv.history || []).concat([`Split payments recorded • ${new Date().toLocaleString()}`]);
+    renderInbox();
+    alert('Split payments recorded (demo).');
+    const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); }
+    _currentSettle = null;
+  });
+})();
+
+/* defensive wiring for upload panel close clear */
+try {
+  const clearUpload = document.getElementById('clearUploadList');
+  if(clearUpload) clearUpload.addEventListener('click', ()=> {
+    const list = document.getElementById('uploadList');
+    if(list) list.innerHTML = '<div class="small-muted" style="padding:12px">No recent uploads</div>';
+  });
+} catch(e){}
+
+/* final render to ensure UI ready */
+try { renderInbox(); } catch(e){ console.warn('final render failed', e); }
+
 </script>
 </body>
 </html>
-
