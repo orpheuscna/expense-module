@@ -1,0 +1,147 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Module Settings — Expense Module</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--blue:#0b5cff;--navy:#08306b;--muted:#6b7280;--bg:#f5f7fb;--card:#ffffff;--danger:#ef4444;--success:#12b76a;}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+    header{background:#fff;padding:12px 20px;border-bottom:1px solid #eef2f7;display:flex;align-items:center;gap:12px}
+    .brand{font-weight:700;color:var(--navy);font-size:16px}
+    .wrap{max-width:920px;margin:28px auto;padding:0 20px}
+    .card{background:var(--card);border-radius:12px;padding:20px;box-shadow:0 8px 30px rgba(12,20,40,0.06);border:1px solid rgba(12,20,40,0.04)}
+    h1{margin:0;color:var(--navy);font-size:20px}
+    .lead{color:var(--muted);margin-top:6px}
+    .form-row{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+    label{font-weight:600;color:var(--navy);font-size:14px}
+    input[type="number"]{padding:10px;border-radius:8px;border:1px solid #e6eef6;font-size:14px;max-width:360px}
+    .hint{font-size:13px;color:var(--muted)}
+    .row{display:flex;gap:12px;align-items:center;margin-top:16px}
+    button{padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+    .btn-primary{background:var(--blue);color:#fff}
+    .btn-muted{background:#f3f4f6;color:var(--navy);border:1px solid #e6eef6}
+    .status{margin-top:12px;font-size:13px}
+    .status.success{color:var(--success)}
+    .status.error{color:var(--danger)}
+    .card small{display:block;color:var(--muted);margin-top:6px}
+    .back-link{color:var(--navy);text-decoration:none;font-weight:700;margin-right:auto}
+    @media(max-width:700px){ .wrap{padding:0 12px} input[type="number"]{max-width:100%} .row{flex-direction:column;align-items:stretch} }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="back-link" href="homepage.html" aria-label="Back to dashboard">← Back to Dashboard</a>
+    <div class="brand">Module Settings</div>
+  </header>
+
+  <main class="wrap" role="main" aria-label="Module Settings">
+    <div class="card" aria-live="polite">
+      <h1>Assistant Module Settings</h1>
+      <div class="lead">Configure what the Assistant is allowed to do for invoices and receipts.</div>
+
+      <div class="form-row" id="approvalSection" role="region" aria-labelledby="approvalHeading">
+        <div id="approvalHeading" style="display:none">Approval Ceiling</div>
+        <label for="ceilingInput">Assistant Approval Ceiling (VND)</label>
+        <input id="ceilingInput" type="number" inputmode="numeric" min="0" step="1000" aria-describedby="ceilingHint" />
+        <div id="ceilingHint" class="hint">Invoices below or equal to this amount can be auto-approved by the Assistant. Enter a whole number in VND. Default: 5,000,000 VND.</div>
+
+        <div class="row" style="margin-top:8px">
+          <button id="saveBtn" class="btn-primary" disabled>Save</button>
+          <button id="resetBtn" class="btn-muted" type="button">Reset to Default</button>
+          <div id="currentBadge" style="margin-left:12px;font-weight:700;color:var(--navy)"></div>
+        </div>
+
+        <div id="statusMessage" class="status" aria-live="assertive"></div>
+        <small>Note: This setting is stored locally in your browser for demo purposes. In a production system, save to the server or central settings store.</small>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function(){
+      const DEFAULT = 5000000; // 5,000,000 VND
+      const STORAGE_KEY = 'assistant_approval_ceiling_vnd';
+      const maxAllowed = 1000000000; // 1 billion guard
+
+      const input = document.getElementById('ceilingInput');
+      const saveBtn = document.getElementById('saveBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const status = document.getElementById('statusMessage');
+      const currentBadge = document.getElementById('currentBadge');
+
+      function readStored(){
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return DEFAULT;
+        const n = parseInt(raw,10);
+        return Number.isFinite(n) && n > 0 ? n : DEFAULT;
+      }
+
+      function renderCurrent(val){
+        currentBadge.textContent = 'Current: ' + val.toLocaleString('en-US') + ' VND';
+      }
+
+      function validateVal(v){
+        if(v === '' || v === null) return { ok:false, msg: 'Value is required.' };
+        const n = Number(v);
+        if(!Number.isFinite(n) || !Number.isInteger(n)) return { ok:false, msg: 'Enter a whole number.' };
+        if(n < 0) return { ok:false, msg: 'Value must be positive.' };
+        if(n > maxAllowed) return { ok:false, msg: 'Value is too large.' };
+        return { ok:true, val: n };
+      }
+
+      function setStatus(msg, type){
+        status.textContent = msg;
+        status.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      // Initialize UI from storage
+      const initial = readStored();
+      input.value = initial;
+      renderCurrent(initial);
+      setStatus('', '');
+
+      // Enable Save only when changed and valid
+      input.addEventListener('input', function(){
+        const val = input.value;
+        const v = validateVal(val);
+        if(!v.ok){
+          saveBtn.disabled = true;
+          setStatus(v.msg, 'error');
+          return;
+        }
+        setStatus('', '');
+        const changed = Number(v.val) !== readStored();
+        saveBtn.disabled = !changed;
+      });
+
+      saveBtn.addEventListener('click', function(){
+        const v = validateVal(input.value);
+        if(!v.ok){ setStatus(v.msg, 'error'); return; }
+        localStorage.setItem(STORAGE_KEY, String(v.val));
+        renderCurrent(v.val);
+        saveBtn.disabled = true;
+        setStatus('Saved approval ceiling: ' + v.val.toLocaleString('en-US') + ' VND', 'success');
+      });
+
+      resetBtn.addEventListener('click', function(){
+        localStorage.removeItem(STORAGE_KEY);
+        input.value = DEFAULT;
+        renderCurrent(DEFAULT);
+        saveBtn.disabled = true;
+        setStatus('Reset to default: ' + DEFAULT.toLocaleString('en-US') + ' VND', 'success');
+      });
+
+      // keyboard shortcut: Ctrl+S to save when focused on input
+      window.addEventListener('keydown', function(e){
+        if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's'){
+          e.preventDefault();
+          if(!saveBtn.disabled) saveBtn.click();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

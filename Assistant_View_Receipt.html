@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Assistant — Invoice View</title>
+<title>Assistant — Receipt View</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -39,18 +39,15 @@
   .link-docs { display:flex; gap:8px; align-items:center; margin-top:6px; }
   .link-docs select { flex:1; padding:10px; border-radius:8px; border:1px solid #e6eef6; font-size:14px; }
 
-  /* Right details background fix */
   .details { background: #fff; display:flex; flex-direction:column; min-height:0; overflow:auto; }
   .details-inner { padding:12px 16px; display:flex; flex-direction:column; gap:10px; min-height:0; overflow:auto; background:#fff; }
 
-  /* modal */
   .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:800}
   .modal{width:720px;background:#fff;border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(2,6,23,0.3);max-height:84vh;overflow:auto}
   .modal h3{margin:0 0 8px 0}
   .doc-viewer { border:1px solid #e6eef6; border-radius:8px; background:#fff; padding:12px; max-height:64vh; overflow:auto; }
   .doc-actions { display:flex; gap:8px; margin-top:10px; justify-content:flex-end; }
 
-  /* document preview styles */
   .pr,.po,.contract{font-size:14px;line-height:1.45;color:#0f172a}
   .pr .header,.po .header,.contract .c-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
   .pr .box{border:1px solid #eef4ff;padding:10px;border-radius:8px;background:#fbfdff}
@@ -60,7 +57,6 @@
 
   @media(max-width:1000px){ .panel{grid-template-columns:1fr} .panel .viewer{height:36vh} .modal{width:92%} }
 
-  /* viewer content flex-scroll fix (ensures inner content can scroll and reveal Notes/footer) */
   .viewer > .viewer-body,
   .viewer .viewer-content,
   .viewer > div[style*="padding:12px"] {
@@ -76,10 +72,10 @@
 
 <div class="panel" role="main" aria-labelledby="panelTitle">
   <!-- Left: Viewer -->
-  <div class="viewer" role="region" aria-label="Invoice preview">
+  <div class="viewer" role="region" aria-label="Receipt preview">
     <header>
       <div>
-        <strong id="panelTitle">INV-xxxx</strong>
+        <strong id="panelTitle">REC-xxxx</strong>
         <div class="small" id="panelStatus" style="margin-top:4px">Needs Assistant action</div>
         <div id="approveHelper" class="approve-helper" style="display:none">Assistant approval ceiling: 5,000,000 VND</div>
       </div>
@@ -112,17 +108,17 @@
 </script>
 
     <div style="padding:12px; display:flex; flex-direction:column; gap:10px; overflow:auto; flex:1 1 auto; min-height:0;" class="viewer-body">
-      <div id="docViewer" class="sample-invoice" aria-label="Sample invoice">
-        <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Invoice</div>
+      <div id="docViewer" class="sample-receipt" aria-label="Sample receipt">
+        <div style="font-weight:700" class="si-h" id="viewVendor">Vendor — Receipt</div>
 
         <div style="display:flex;justify-content:space-between;margin-top:8px">
-          <div><strong>Invoice</strong> <span id="viewInvId">INV-xxxx</span></div>
+          <div><strong>Receipt</strong> <span id="viewRecId">REC-xxxx</span></div>
           <div><strong>Date</strong> <span id="viewDate">YYYY-MM-DD</span></div>
         </div>
 
         <div style="display:flex;justify-content:space-between;margin-top:8px">
-          <div><strong>Bill To</strong><br/><span id="viewBillTo">Company</span></div>
-          <div><strong>Due</strong> <span id="viewDue">YYYY-MM-DD</span></div>
+          <div><strong>Received From</strong><br/><span id="viewBillTo">Company</span></div>
+          <div><strong>Reference</strong> <span id="viewRef">YYYY-MM-DD</span></div>
         </div>
 
         <div style="margin-top:12px;font-weight:700">Items</div>
@@ -150,16 +146,14 @@
 
         <div style="margin-top:18px;font-size:13px;color:var(--muted)" id="viewAttached">Attached: </div>
       </div>
-
-      <!-- removed duplicate control block under preview (kept main controls in right panel) -->
     </div>
   </div>
 
   <!-- Right: Details -->
-  <div class="details" role="region" aria-label="Invoice details">
+  <div class="details" role="region" aria-label="Receipt details">
     <div style="padding:12px 16px;border-bottom:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center">
       <div style="display:flex;flex-direction:column">
-        <div style="font-weight:800" id="detailInvId">INV-xxxx</div>
+        <div style="font-weight:800" id="detailRecId">REC-xxxx</div>
         <div class="small" id="detailSubtitle">Uploaded: YYYY-MM-DD • Vendor</div>
       </div>
       <div style="display:flex;gap:8px">
@@ -179,7 +173,7 @@
 
       <div style="display:flex;gap:10px">
         <div style="flex:1" class="fld">
-          <label for="dateFld">Invoice Date</label>
+          <label for="dateFld">Receipt Date</label>
           <div style="display:flex;gap:8px;align-items:center">
             <input id="dateFld" type="date" />
           </div>
@@ -224,7 +218,7 @@
             <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Subtotal</div><div id="subtotalDisplay" style="font-weight:800">$0.00</div></div>
             <div style="display:flex;justify-content:space-between;padding:6px 0"><div class="small-muted">Total Tax</div><div id="totalTaxDisplay" style="font-weight:800">$0.00</div></div>
             <div style="border-top:1px solid #eef4ff;margin-top:6px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:800">Grand Total</div><div id="grandTotalDisplay" style="font-weight:900">$0.00</div></div>
-            <div id="totalMismatch" style="color:#b45309;font-size:13px;margin-top:6px;display:none">Calculated total does not match invoice total. Please verify.</div>
+            <div id="totalMismatch" style="color:#b45309;font-size:13px;margin-top:6px;display:none">Calculated total does not match receipt total. Please verify.</div>
           </div>
         </div>
       </div>
@@ -268,7 +262,6 @@
         <div class="support-list" id="supportList" aria-live="polite" style="margin-top:8px"></div>
       </div>
 
-      <!-- Payment destination control + conditional Reimburse fields (new) -->
       <div style="margin-top:10px; border-top:1px solid #eef4ff; padding-top:10px;">
         <div style="display:flex;align-items:center;gap:12px">
           <div style="font-weight:700">Payment destination</div>
@@ -328,14 +321,14 @@
   // Assistant approval ceiling (in VND)
   const ASSISTANT_APPROVAL_CEILING_VND = 5000000;
 
-  const INVOICE_DB = {
-    'INV-2025-001': {
-      id: 'INV-2025-001',
+  const RECEIPT_DB = {
+    'REC-2025-001': {
+      id: 'REC-2025-001',
       vendor: 'ACME Supplies Co.',
       date: '2025-10-25',
-      due: '2025-11-24',
+      ref: 'REF-2025-001',
       billTo: 'HR Department\nCompany XYZ\n123 Nguyen Van Linh',
-      total: '₫4,250,000', // example in VND — demo supports currency strings
+      total: '₫4,250,000',
       subtitle: 'Uploaded: 2025-10-26 • Vendor: ACME Supplies Co.',
       lines: [
         { desc:'Printer paper A4', qty:10, unit:75000, tax:0.00 },
@@ -343,7 +336,7 @@
       ],
       attached: [
         { name: 'Contract_2025_01.pdf', type: 'Other documents' },
-        { name: 'PaymentRequest_INV-2025-001.pdf', type: 'Payment Request' }
+        { name: 'PaymentRequest_REC-2025-001.pdf', type: 'Payment Request' }
       ],
       notes: 'Missing delivery slip',
       paymentDestination: 'vendor',
@@ -357,11 +350,8 @@
   function getQueryParam(name){ return (new URLSearchParams(window.location.search)).get(name); }
   function escapeHtml(s){ return String(s).replace(/[&<>"'`=\/]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch])); }
   function parseMoneyLoose(v){
-    // accepts strings like "₫4,250,000", "$330.00", "3300000", "3,300,000"
     if(typeof v !== 'string') v = String(v || '');
-    // Remove currency symbols and whitespace
     const cleaned = v.replace(/[^\d,.\-]/g, '').trim();
-    // If comma used as thousand sep (many VND examples) remove commas
     const removedCommas = cleaned.replace(/,/g,'');
     const n = parseFloat(removedCommas);
     return Number.isFinite(n) ? n : 0;
@@ -370,7 +360,7 @@
 
   function sampleContentFor(name, type){
     if(type==='Payment Request' || name.toLowerCase().includes('paymentrequest')){
-      return `<div class="pr"><div class="header"><div><div style="font-weight:900;font-size:16px">Payment Request</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div></div><div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Date: 2025-10-26</div></div></div><div class="box"><div><strong>To:</strong> Finance Department</div><div style="margin-top:6px"><strong>Invoice ref:</strong> INV-2025-001</div><div style="margin-top:6px"><strong>Amount requested:</strong> <span style="font-weight:800">₫4,250,000</span></div></div></div>`;
+      return `<div class="pr"><div class="header"><div><div style="font-weight:900;font-size:16px">Payment Request</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div></div><div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Date: 2025-10-26</div></div></div><div class="box"><div><strong>To:</strong> Finance Department</div><div style="margin-top:6px"><strong>Receipt ref:</strong> REC-2025-001</div><div style="margin-top:6px"><strong>Amount requested:</strong> <span style="font-weight:800">₫4,250,000</span></div></div></div>`;
     }
     if(type==='Other documents' || name.toLowerCase().includes('contract')){
       return `<div class="contract"><div class="c-header"><div><div style="font-weight:900;font-size:16px">Service Contract</div><div style="color:var(--muted);margin-top:6px">ACME Supplies Co.</div></div><div style="text-align:right"><div style="font-weight:700">${escapeHtml(name)}</div><div class="small-muted" style="margin-top:6px">Effective date: 2025-09-01</div></div></div><div><strong>Parties</strong></div><div class="clause">This Contract is between ACME Supplies Co. ("Supplier") and Company XYZ ("Client") for the supply of goods.</div></div>`;
@@ -395,19 +385,19 @@
     container.appendChild(item);
   }
 
-  function loadInvoiceById(invId){ return INVOICE_DB[invId] || INVOICE_DB['INV-2025-001']; }
+  function loadReceiptById(recId){ return RECEIPT_DB[recId] || RECEIPT_DB['REC-2025-001']; }
 
   function populatePage(data){
     document.getElementById('panelTitle').textContent = data.id;
-    document.getElementById('detailInvId').textContent = data.id;
+    document.getElementById('detailRecId').textContent = data.id;
     document.getElementById('detailSubtitle').textContent = data.subtitle;
     document.getElementById('vendorFld').value = data.vendor;
     document.getElementById('dateFld').value = data.date;
     document.getElementById('totalFld').value = data.total;
-    document.getElementById('viewInvId').textContent = data.id;
+    document.getElementById('viewRecId').textContent = data.id;
     document.getElementById('viewDate').textContent = data.date;
-    document.getElementById('viewDue').textContent = data.due || '—';
-    document.getElementById('viewVendor').textContent = data.vendor + ' — Invoice';
+    document.getElementById('viewRef').textContent = data.ref || '—';
+    document.getElementById('viewVendor').textContent = data.vendor + ' — Receipt';
     document.getElementById('viewBillTo').innerText = data.billTo || '';
     document.getElementById('notesFld').value = data.notes || '';
 
@@ -427,7 +417,6 @@
       tbody.appendChild(tr);
     });
 
-    // clear and register initial attachments
     const supportList = document.getElementById('supportList'); supportList.innerHTML = '';
     Object.keys(SUPPORT_REGISTRY).forEach(k=>delete SUPPORT_REGISTRY[k]);
     (data.attached || []).forEach((f, idx)=>{
@@ -437,7 +426,6 @@
       appendSupportItem(supportList, id, info);
     });
 
-    // Payment destination and employee fields
     const pd = data.paymentDestination || 'vendor';
     if(pd === 'reimburse'){
       document.getElementById('reimburseRd').checked = true;
@@ -453,7 +441,6 @@
     document.getElementById('employeeNameFld').value = data.employeeName || 'Linh Tran';
 
     updateViewAttached(); computeTotals();
-    // show helper line for assistant ceiling (always visible in demo)
     document.getElementById('approveHelper').style.display = 'block';
   }
 
@@ -477,14 +464,13 @@
     return { subtotal, totalTax, grand };
   }
 
-  // show/hide employee block
   function showEmployeeBlock(show){
     const el = document.getElementById('employeeBlock');
     if(!el) return;
     el.style.display = show ? 'block' : 'none';
   }
 
-  // ---------- Receipt-number helpers (client-side) ----------
+  // Receipt-number helpers (client-side)
   function _receiptDateKey(datePart){ return 'receipt_seq_' + datePart; }
   function nextReceiptSeqFor(datePart){
     try{
@@ -495,7 +481,6 @@
       localStorage.setItem(key, String(next));
       return next;
     }catch(e){
-      // fallback random
       return Math.floor(Math.random()*9000)+1;
     }
   }
@@ -504,13 +489,13 @@
     const y = now.getFullYear();
     const m = String(now.getMonth()+1).padStart(2,'0');
     const d = String(now.getDate()).padStart(2,'0');
-    const datePart = `${y}${m}${d}`; // YYYYMMDD
+    const datePart = `${y}${m}${d}`;
     const seq = nextReceiptSeqFor(datePart);
     const seqStr = String(seq).padStart(4,'0');
     return { number: `REC-${datePart}-${seqStr}`, datePart };
   }
 
-  // attach files by selected type (upload) — updated to support Receipt type and display receipt number
+  // attach files by selected type (upload)
   document.getElementById('attachTypeBtn').addEventListener('click', ()=>{
     const typeSel = document.getElementById('paymentTypeSelect');
     const filesInput = document.getElementById('paymentUploadSelect');
@@ -521,19 +506,17 @@
 
     Array.from(filesInput.files).forEach((f,i)=>{
       let name = f.name;
-      // for Payment Request/Order, normalize name to PDF if necessary
       if(chosenType !== 'Other documents' && chosenType !== 'Receipt' && !name.toLowerCase().endsWith('.pdf')){
-        name = (chosenType === 'Payment Request' ? 'PaymentRequest_' : 'PaymentOrder_') + (getQueryParam('inv')||'INV-2025-001') + '.pdf';
+        const paramRec = getQueryParam('rec') || 'REC-2025-001';
+        name = (chosenType === 'Payment Request' ? 'PaymentRequest_' : 'PaymentOrder_') + paramRec + '.pdf';
       }
 
       const isReceiptType = (chosenType === 'Receipt');
 
-      // If it's a receipt, generate receipt number and attach metadata
       let receiptMeta = null;
       if(isReceiptType){
         const rn = generateReceiptNumber();
         receiptMeta = { receiptNumber: rn.number, receiptDateKey: rn.datePart };
-        // optionally prefix displayed filename to make it obvious
         if(!/receipt/i.test(name)) name = `Receipt-${name}`;
       }
 
@@ -544,7 +527,6 @@
       registerSupport(id, info);
       appendSupportItem(list, id, info);
 
-      // show receipt number visually on the appended support-item
       const el = list.querySelector(`.support-item[data-fileid="${id}"]`);
       if(el && info.receipt){
         const tagRow = document.createElement('div');
@@ -574,7 +556,6 @@
     sel.value = ''; updateViewAttached();
   });
 
-  // support list actions
   document.getElementById('supportList').addEventListener('click', function(e){
     const vw = e.target.closest('.view-support');
     const dl = e.target.closest('.download-support');
@@ -599,7 +580,6 @@
     }
   });
 
-  // preview modal management
   const modal = document.getElementById('modalPreview');
   const previewContent = document.getElementById('previewContent');
   const previewMeta = document.getElementById('previewMeta');
@@ -640,7 +620,6 @@
     document.getElementById('viewAttached').textContent = 'Attached: ' + (names.length ? names.join(', ') : '—');
   }
 
-  // Payment destination UI wiring
   document.getElementById('payVendorRd').addEventListener('change', ()=> {
     if(document.getElementById('payVendorRd').checked) {
       showEmployeeBlock(false);
@@ -653,9 +632,8 @@
     }
   });
 
-  // utility bindings
-  document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='Assistant_Invoice_Management.html');
-  document.getElementById('closePanelFooter')?.addEventListener('click', ()=> window.location.href='Assistant_Invoice_Management.html');
+  document.getElementById('closeBtn').addEventListener('click', ()=> window.location.href='Assistant_Receipt_Management.html');
+  document.getElementById('closePanelFooter')?.addEventListener('click', ()=> window.location.href='Assistant_Receipt_Management.html');
   document.getElementById('addLine').addEventListener('click', ()=> {
     const tbody=document.querySelector('#lineItemsTable tbody');
     const idx=tbody.querySelectorAll('tr').length+1;
@@ -678,36 +656,29 @@
 
   document.getElementById('saveDraft').addEventListener('click', ()=> {
     alert('Draft saved (demo).');
-    window.location.href = 'Assistant_Invoice_Management.html';
+    window.location.href = 'Assistant_Receipt_Management.html';
   });
 
-  // Approve button wiring (Assistant)
   document.getElementById('approveBtn').addEventListener('click', ()=> {
-    // Determine numeric total (VND assumed in this demo)
     const totalRaw = document.getElementById('totalFld').value || '';
     const totalVal = parseMoneyLoose(totalRaw);
-    // ceiling check
     if (totalVal <= ASSISTANT_APPROVAL_CEILING_VND) {
-      // Simulate approval (demo): update status and history, show success
       document.getElementById('panelStatus').textContent = 'Approved by Assistant';
-      const invKey = getQueryParam('inv') || 'INV-2025-001';
+      const recKey = getQueryParam('rec') || 'REC-2025-001';
       try {
-        const inv = INVOICE_DB[invKey];
-        if(inv){
-          inv.history = (inv.history||[]).concat([`Approved by assistant • ${new Date().toLocaleString()} • ${fmtMoney(totalVal,'₫')}`]);
-          inv.status = 'approved_electronic';
+        const rec = RECEIPT_DB[recKey];
+        if(rec){
+          rec.history = (rec.history||[]).concat([`Approved by assistant • ${new Date().toLocaleString()} • ${fmtMoney(totalVal,'₫')}`]);
+          rec.status = 'approved_electronic';
         }
       } catch(e){}
-      alert('Invoice approved (demo).');
+      alert('Receipt approved (demo).');
       return;
     }
-    // Over ceiling -> require director
     alert('Amount exceeds assistant approval ceiling of 5,000,000 VND. Please submit to Director.');
-    // focus submit to director button to guide user
     document.getElementById('submitToDirector').focus();
   });
 
-  // Submit to Director (keeps previous behavior)
   document.getElementById('submitToDirector').addEventListener('click', ()=> {
     const empId = document.getElementById('employeeIdFld').value.trim();
     const empName = document.getElementById('employeeNameFld').value.trim();
@@ -720,25 +691,23 @@
     alert('Submitted to Director (demo).');
     document.getElementById('panelStatus').textContent='Submitted';
     try {
-      const invKey = getQueryParam('inv') || 'INV-2025-001';
-      const inv = INVOICE_DB[invKey];
-      if(inv){
+      const recKey = getQueryParam('rec') || 'REC-2025-001';
+      const rec = RECEIPT_DB[recKey];
+      if(rec){
         const empNote = empId || empName ? ` • Reimburse to: ${empId || ''}${(empId && empName)?' / ':''}${empName || ''}` : '';
-        inv.history = (inv.history||[]).concat([`Submitted to Director • Payment destination: ${paymentDest}${empNote} • ${new Date().toLocaleString()}`]);
-        inv.paymentDestination = paymentDest;
-        if(empId) inv.employeeId = empId;
-        if(empName) inv.employeeName = empName;
+        rec.history = (rec.history||[]).concat([`Submitted to Director • Payment destination: ${paymentDest}${empNote} • ${new Date().toLocaleString()}`]);
+        rec.paymentDestination = paymentDest;
+        if(empId) rec.employeeId = empId;
+        if(empName) rec.employeeName = empName;
       }
     } catch(e){}
-    window.location.href = 'Assistant_Invoice_Management.html';
+    window.location.href = 'Assistant_Receipt_Management.html';
   });
 
-  // Submit panel (bottom) augmented to include employee info in history and validation
   document.getElementById('submitPanel').addEventListener('click', () => {
     const { grand } = computeTotals();
-    // Compare totalFld (may be currency string); allow submit with warning if mismatch
-    const invoiceTotal = parseMoneyLoose(document.getElementById('totalFld').value);
-    if(Math.abs(invoiceTotal - grand) > 0.005){ if(!confirm('Calculated grand total differs from invoice total. Submit anyway?')) return; }
+    const receiptTotal = parseMoneyLoose(document.getElementById('totalFld').value);
+    if(Math.abs(receiptTotal - grand) > 0.005){ if(!confirm('Calculated grand total differs from receipt total. Submit anyway?')) return; }
 
     const empId = document.getElementById('employeeIdFld').value.trim();
     const empName = document.getElementById('employeeNameFld').value.trim();
@@ -750,25 +719,25 @@
     }
 
     try {
-      const invKey = getQueryParam('inv') || 'INV-2025-001';
-      const inv = INVOICE_DB[invKey];
-      if(inv){
+      const recKey = getQueryParam('rec') || 'REC-2025-001';
+      const rec = RECEIPT_DB[recKey];
+      if(rec){
         const empNote = empId || empName ? ` • Reimburse to: ${empId || ''}${(empId && empName)?' / ':''}${empName || ''}` : '';
-        inv.history = (inv.history||[]).concat([`Submitted to Director • Payment destination: ${paymentDest}${empNote} • ${new Date().toLocaleString()}`]);
-        inv.paymentDestination = paymentDest;
-        if(empId) inv.employeeId = empId;
-        if(empName) inv.employeeName = empName;
+        rec.history = (rec.history||[]).concat([`Submitted to Director • Payment destination: ${paymentDest}${empNote} • ${new Date().toLocaleString()}`]);
+        rec.paymentDestination = paymentDest;
+        if(empId) rec.employeeId = empId;
+        if(empName) rec.employeeName = empName;
       }
     } catch(e){}
-    alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; window.location.href='Assistant_Invoice_Management.html';
+    alert('Submitted to Director (demo).'); document.getElementById('panelStatus').textContent='Submitted'; window.location.href='Assistant_Receipt_Management.html';
   });
 
   // initialize page
   (function init(){
-    const inv = getQueryParam('inv') || 'INV-2025-001';
-    const data = loadInvoiceById(inv);
+    const rec = getQueryParam('rec') || 'REC-2025-001';
+    const data = loadReceiptById(rec);
     const list = document.getElementById('supportList'); list.innerHTML = '';
-    data.attached.forEach((f, idx)=>{
+    (data.attached || []).forEach((f, idx)=>{
       const id = 'init-' + idx;
       const info = { name: f.name, type: f.type, size: 2048, contentHtml: sampleContentFor(f.name, f.type) };
       registerSupport(id, info);
@@ -777,13 +746,13 @@
     populatePage(data);
   })();
 
-  // small helpers exposed
-  window.getInvoiceEmployeeRef = function(invKey){
+  window.getReceiptEmployeeRef = function(recKey){
     try{
-      const inv = INVOICE_DB[invKey || (getQueryParam('inv') || 'INV-2025-001')];
-      return { paymentDestination: inv?.paymentDestination || 'vendor', id: inv?.employeeId || '', name: inv?.employeeName || '' };
+      const rec = RECEIPT_DB[recKey || (getQueryParam('rec') || 'REC-2025-001')];
+      return { paymentDestination: rec?.paymentDestination || 'vendor', id: rec?.employeeId || '', name: rec?.employeeName || '' };
     }catch(e){ return {paymentDestination:'vendor', id:'', name:''}; }
   };
 </script>
 </body>
 </html>
+```

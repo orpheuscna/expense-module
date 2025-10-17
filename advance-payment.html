@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Advance Payment Request</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body {font-family: Inter, sans-serif; margin: 0; background: #f5f7fb; color: #0f172a;}
+  header {background: #08306b; color: white; padding: 16px;}
+  header h1 {margin: 0; font-size: 20px;}
+  .container {max-width: 800px; margin: 24px auto; padding: 0 16px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);}
+  .field {display: flex; flex-direction: column; margin-bottom: 12px;}
+  label {font-weight: 600; margin-bottom: 4px;}
+  input, textarea, select {padding: 8px; border: 1px solid #e6eef6; border-radius: 6px; font-family: inherit;}
+  button {padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600;}
+  .btn-primary {background: #0b5cff; color: white;}
+  .btn-outline {background: white; border: 1px solid #e6eef6; color: #08306b;}
+  .list-item {background: #f9fafb; padding: 8px; border-radius: 6px; margin-bottom: 6px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>Advance Payment Request</h1>
+</header>
+<div class="container">
+  <div style="margin-top:16px;">
+    <button class="btn-outline" onclick="location.href='Assistant_Invoice_Management.html'">← Back to Dashboard</button>
+  </div>
+  <h2>Submit New Advance Payment Request</h2>
+  <div class="field"><label>Beneficiary Company Name</label><input id="advCompany"></div>
+  <div class="field"><label>Bank Name</label><input id="advBank" placeholder="HSBC"></div>
+  <div class="field"><label>Account Number / IBAN</label><input id="advAccount"></div>
+  <div class="field"><label>Amount</label><input id="advAmount" type="number"></div>
+  <div class="field"><label>Currency</label><select id="advCurrency"><option>USD</option><option>HKD</option><option>VND</option><option>Other</option></select></div>
+  <div class="field"><label>Purpose / Remarks</label><textarea id="advRemarks" rows="3"></textarea></div>
+  <div class="field"><label>Value Date</label><input id="advDate" type="date"></div>
+  <div class="field"><label>Due Date</label><input id="advDue" type="date"></div>
+  <div class="field"><label>Attach Supporting Documents</label><input id="advFiles" type="file" multiple></div>
+  <button class="btn-primary" onclick="submitAdvanceRequest()">Submit Request</button>
+  <h3 style="margin-top:20px;">Submitted Advance Payment Requests</h3>
+  <div id="advanceList"></div>
+  <button class="btn-outline" onclick="clearRequests()">Clear All</button>
+</div>
+<script>
+function loadRequests() {
+  const list = document.getElementById('advanceList');
+  list.innerHTML = '';
+  const adv = JSON.parse(localStorage.getItem('advancePayments') || '[]');
+  adv.forEach(r => list.innerHTML += `<div class='list-item'>${r.company} — ${r.amount} ${r.currency} | Value: ${r.date} | Due: ${r.due}</div>`);
+}
+function submitAdvanceRequest() {
+  const entry = {
+    company: advCompany.value.trim(),
+    bank: advBank.value.trim(),
+    account: advAccount.value.trim(),
+    amount: advAmount.value.trim(),
+    currency: advCurrency.value,
+    remarks: advRemarks.value.trim(),
+    date: advDate.value,
+    due: advDue.value
+  };
+  if (!entry.company || !entry.amount) { alert('Please fill required fields'); return; }
+  const data = JSON.parse(localStorage.getItem('advancePayments') || '[]');
+  data.push(entry);
+  localStorage.setItem('advancePayments', JSON.stringify(data));
+  loadRequests();
+}
+function clearRequests() {
+  if (confirm('Clear all saved requests?')) {
+    localStorage.removeItem('advancePayments');
+    loadRequests();
+  }
+}
+window.onload = loadRequests;
+</script>
+</body>
+</html>

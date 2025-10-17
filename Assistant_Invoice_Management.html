@@ -96,6 +96,10 @@
   .small-muted{color:var(--muted);font-size:13px}
   /* cap support list height within modal */
   #mSupportList { max-height: 36vh; overflow:auto; }
+  /* Receipt row visual treatment */
+.receipt-row { background: #fbfdff; border-left: 4px solid #f59e0b; }
+.receipt-row .number { font-weight:700; color:#92400e; }
+.receipt-badge { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; background:#fff7ed; color:#92400e; margin-left:8px; font-weight:700; }
 </style>
 <!-- SheetJS for XLSX export -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/shim.min.js"></script>
@@ -106,10 +110,10 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div><h2>Invoice Management</h2></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button id="newUpload" class="tool-btn">New Upload</button>
-      <button id="bulkUpload" class="tool-btn">Bulk Upload</button>
-      <button id="scanUpload" class="tool-btn">Scan to Upload</button>
-      <button id="newManual" class="tool-btn">New Manual Invoice</button>
+      <button id="newUpload" class="tool-btn">Invoice Upload</button>
+      <button id="bulkUpload" class="tool-btn">Receipt Upload</button>
+      <button id="scanUpload" class="tool-btn">Payment Request</button>
+      <button id="newManual" class="tool-btn">Advance Payment Request</button>
     </div>
   </div>
 
@@ -145,7 +149,7 @@
         <tr>
           <th scope="col" style="width:36px"><input id="selectAll" type="checkbox" /></th>
           <th scope="col">Vendor</th>
-          <th scope="col">Invoice #</th>
+          <th scope="col">Invoice/Receipt #</th>
           <th scope="col">Date</th>
           <th scope="col" class="amount">Amount</th>
           <th scope="col" class="status">Status</th>
@@ -449,10 +453,13 @@ let invoices = [
   { id:'inv-002', vendor:'Travel Co', number:'INV-1002', date:'2025-09-20', amount:420.00, status:'approved_electronic', category:'Travel', items:[{desc:'Taxi',qty:1,price:120},{desc:'Hotel',qty:1,price:300}], history:['Uploaded • Yesterday','Director approved electronically • 2025-10-02 09:15'], directorAction:{type:'approved_electronic',note:'Approved for payment',time:'2025-10-02 09:15'}, attachments:[], completionTag:'Sent to TRG', archivedCompleted:false },
   { id:'inv-003', vendor:'OfficeMax', number:'INV-1003', date:'2025-09-12', amount:210.00, status:'pending_approval', category:'Office Supplies', items:[{desc:'Staples',qty:5,price:42}], history:['Ready'], directorAction:null, attachments:[] },
   { id:'inv-004', vendor:'Catering Ltd', number:'INV-1004', date:'2025-10-01', amount:980.00, status:'rejected', category:'Entertainment', items:[{desc:'Lunch',qty:1,price:980}], history:['Rejected by reviewer • 1d ago'], directorAction:{type:'rejected',note:'Not eligible',time:'2025-10-02 09:00'}, attachments:[] },
+    // Receipt rows (treated like invoices for inbox)
+  { id:'rec-001', vendor:'Cafe Corner', number:'REC-2025-1001', date:'2025-09-15', amount:48.75, status:'pending_review', category:'Travel', items:[{desc:'Team coffee & snacks',qty:1,price:48.75}], history:['Receipt uploaded • 2025-09-15 10:12'], directorAction:null, attachments:[{name:'CafeCorner-Receipt-09015.pdf',type:'Receipt'}] },
+  { id:'rec-002', vendor:'TaxiFast', number:'REC-2025-1002', date:'2025-09-16', amount:22.40, status:'pending_review', category:'Travel', items:[{desc:'Airport taxi',qty:1,price:22.40}], history:['Receipt uploaded • 2025-09-16 08:45'], directorAction:null, attachments:[{name:'TaxiFast-09016.jpg',type:'Receipt'}] },
   { id:'inv-005', vendor:'Consulting LLC', number:'INV-1005', date:'2025-09-30', amount:3400.00, status:'approved_physical', category:'Consulting', items:[{desc:'Consulting fee',qty:1,price:3400}], history:['Submitted','Director approved (will sign physically) • 2025-10-02 10:30'], directorAction:{type:'approved_physical',note:'Will sign in person',time:'2025-10-02 10:30'}, attachments:[], completionTag:'Will be reimbursed on payday', archivedCompleted:false },
   { id:'inv-009', vendor:'Vendor A', number:'INV-2001', date:'2025-08-11', amount:500.00, status:'approved_electronic', category:'Office Supplies', items:[{desc:'Ink',qty:5,price:100}], history:['Director approved electronically • 2025-08-15','Assistant marked completed: Sent to TRG • 2025-08-16'], directorAction:{type:'approved_electronic',note:'OK'}, attachments:[], completionTag:'Sent to TRG', archivedCompleted:true },
   { id:'inv-010', vendor:'Vendor B', number:'INV-2002', date:'2025-07-20', amount:120.00, status:'approved_physical', category:'Travel', items:[{desc:'Taxi',qty:1,price:120}], history:['Director approved (physical) • 2025-07-25','Assistant marked completed: Transfer on Payday • 2025-07-26'], directorAction:{type:'approved_physical',note:'Will sign'}, attachments:[], completionTag:'Will be reimbursed on payday', archivedCompleted:true },
-  { id:'inv-011', vendor:'Vendor C', number:'INV-2003', date:'2025-06-05', amount:60.00, status:'approved_electronic', category:'Office Supplies', items:[{desc:'Staples',qty:3,price:20}], history:['Director approved electronically • 2025-06-10','Assistant marked completed: Will pay in cash • 2025-06-11'], directorAction:{type:'approved_electronic',note:'Approved'}, attachments:[], completionTag:'Will pay in cash', archivedCompleted:true },
+  { id:'inv-011', vendor:'Vendor C', number:'INV-2003', date:'2025-06-05', amount:60.00, status:'approved_electronic', category:'Office Supplies', items:[{desc:'Staples',qty:3,price:20}], history:['Director approved electronically • 2025-06-10','Assistant marked completed: archived • 2025-06-11'], directorAction:{type:'approved_electronic',note:'Approved'}, attachments:[], completionTag:'archived', archivedCompleted:true },
   { id:'inv-006', vendor:'Logistics Inc', number:'INV-1006', date:'2025-09-25', amount:1500.00, status:'pending_approval', category:'Logistics', items:[{desc:'Freight',qty:1,price:1500}], history:['Submitted'], directorAction:null, attachments:[] },
   { id:'inv-007', vendor:'Stationery Co', number:'INV-1007', date:'2025-10-02', amount:75.00, status:'changes_requested', category:'Office Supplies', items:[{desc:'Pens',qty:15,price:5}], history:['Uploaded • 1h ago','Director requested changes • 2025-10-02 11:00'], directorAction:{type:'changes_requested',note:'Please correct vendor code',time:'2025-10-02 11:00'}, attachments:[] },
   { id:'inv-008', vendor:'Maintenance Co', number:'INV-1008', date:'2025-10-03', amount:620.00, status:'pending_review', category:'Maintenance', items:[{desc:'Repair',qty:1,price:620}], history:['Submitted • 30m ago'], directorAction:null, attachments:[] }
@@ -644,7 +651,7 @@ function showInlineTagPicker(anchorBtn, invId){
 
   const sel = document.createElement('select');
   sel.className = 'filter';
-  sel.innerHTML = '<option value="">Choose tag (optional)</option><option>Sent to TRG</option><option>Will be reimbursed on payday</option><option>Will pay in cash</option><option>Rejected</option>';
+  sel.innerHTML = '<option value="">Choose tag (optional)</option><option>Sent to TRG</option><option>Will be reimbursed on payday</option><option>Archived</option><option>Rejected</option>';
 
   const applyBtn = document.createElement('button');
   applyBtn.className = 'btn btn-primary';
@@ -701,8 +708,8 @@ function createCompletionTagSelect() {
   sel.innerHTML = '<option value="">Any completion tag</option>'
                 + '<option>Sent to TRG</option>'
                 + '<option>Will be reimbursed on payday</option>'
-                + '<option>Will pay in cash</option>'
-                + '<option>Rejected</option>';
+                + '<option>Rejected</option>'
+                + '<option>Archived</option>';
   sel.addEventListener('input', () => renderInbox());
   return sel;
 }
@@ -984,13 +991,34 @@ document.addEventListener('DOMContentLoaded', function(){
     const el = getById(id); if(el) el.addEventListener('input', ()=> renderInbox());
   });
 
-  // wire upload controls
-  const newUpload = getById('newUpload'); if(newUpload) newUpload.addEventListener('click', ()=> openUploadPanel('single'));
-  const bulkUpload = getById('bulkUpload'); if(bulkUpload) bulkUpload.addEventListener('click', ()=> openUploadPanel('bulk'));
-  const scanUpload = getById('scanUpload'); if(scanUpload) scanUpload.addEventListener('click', ()=> openUploadPanel('scan'));
-  const closeUpload = getById('closeUploadPanel'); if(closeUpload) closeUpload.addEventListener('click', ()=> closeUploadPanel());
-  const panelCancel = getById('panelCancel'); if(panelCancel) panelCancel.addEventListener('click', ()=> closeUploadPanel());
-  const panelFileLabel = getById('panelFileLabel'); if(panelFileLabel) panelFileLabel.addEventListener('click', ()=> { const f = getById('panelFileInput'); if(f) f.click(); });
+  // wire upload controls and request navigation
+const newUpload = getById('newUpload');
+if (newUpload) newUpload.addEventListener('click', () => openUploadPanel('single'));
+
+const bulkUpload = getById('bulkUpload');
+if (bulkUpload) bulkUpload.addEventListener('click', () => openUploadPanel('bulk'));
+
+// Payment Request should navigate to payment-request.html
+const scanUpload = getById('scanUpload');
+if (scanUpload) scanUpload.addEventListener('click', () => {
+  window.location.href = 'payment-request.html';
+});
+
+// Advance Payment Request should navigate to advance-payment.html
+const newManualBtn = getById('newManual');
+if (newManualBtn) newManualBtn.addEventListener('click', () => {
+  window.location.href = 'advance-payment.html';
+});
+
+const closeUpload = getById('closeUploadPanel');
+if (closeUpload) closeUpload.addEventListener('click', () => closeUploadPanel());
+
+const panelCancel = getById('panelCancel');
+if (panelCancel) panelCancel.addEventListener('click', () => closeUploadPanel());
+
+const panelFileLabel = getById('panelFileLabel');
+if (panelFileLabel) panelFileLabel.addEventListener('click', () => { const f = getById('panelFileInput'); if (f) f.click(); });
+
 
   renderInbox();
 });
