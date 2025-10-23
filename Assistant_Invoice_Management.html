@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="asset-version" content="2025-10-16-1" />
+<meta name="asset-version" content="2025-10-23-5+show-archived+fix-filter" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Invoice Management — Completed Filter & Tags (Demo Payments Seeded)</title>
+<title>Invoice Management — Show Archived (fixed)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -32,13 +32,15 @@
   .s-changes-requested{background:var(--changes-requested-bg);color:#9a5800}
   .s-rejected{background:#fff1f2;color:var(--danger)}
   .s-paid{background:#ecfdf5;color:var(--success)}
-  .s-to-be-paid{background:#fff7ed;color:var(--navy)}
+  .s-unpaid{background:#fff7ed;color:var(--navy)}
   .compact{font-size:13px;color:var(--muted)}
   .actions button{margin-left:6px;padding:6px 10px;border-radius:8px;border:1px solid #e6eef6;background:#fff;cursor:pointer}
   .payment-primary{background:linear-gradient(90deg,var(--blue),#6ea8ff);color:#08306b;border:0;padding:6px 10px;border-radius:8px;cursor:pointer}
   .payment-secondary{background:#fff;border:1px solid #e6eef6;color:var(--navy);padding:6px 10px;border-radius:8px;cursor:pointer}
   th.amount,td.amount{width:140px;text-align:right;padding-right:18px}
-  th.status,td.status{min-width:140px}
+  th.status,td.status{min-width:120px}
+  th.approval-col,td.approval-col{width:160px;min-width:140px}
+  .approval-col.hidden{display:none}
   .detail-panel{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:flex-end;padding:40px;pointer-events:none}
   .detail-card{width:880px;max-width:calc(100% - 48px);pointer-events:auto;background:#fff;border-radius:12px;padding:18px;border:1px solid rgba(2,6,23,0.06);box-shadow:0 30px 60px rgba(2,6,23,0.18);display:grid;grid-template-columns:1fr 360px;gap:18px}
   .detail-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
@@ -66,7 +68,6 @@
   .action-btn{background:#f3f4f6;border-radius:8px;padding:6px 10px;border:1px solid #e6eef6;cursor:pointer}
   .progress-bar{transition:width .3s linear}
   .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:600}
-  /* Modal layout tweaks for viewport-safe scrolling */
   .modal{width:920px;background:#fff;border-radius:12px;padding:12px;box-shadow:0 20px 60px rgba(2,6,23,0.3);max-width:96vw;box-sizing:border-box;display:flex;flex-direction:column;max-height:calc(100vh - 48px);overflow:hidden}
   .modal-body{overflow:auto;padding-right:8px;flex:1 1 auto}
   .modal-footer{flex:0 0 auto;display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid #eef4ff;margin-top:12px}
@@ -86,20 +87,12 @@
     .split-amount{ flex-basis:95px; }
   }
   .hidden{display:none}
-  /* manual modal specific */
-  .link-docs { display:flex; gap:8px; align-items:center; margin-top:6px; }
-  .link-docs select, .link-docs input[type=file] { flex:1; padding:10px; border-radius:8px; border:1px solid #e6eef6; font-size:14px; background:#fff; }
+  .small-muted{color:var(--muted);font-size:13px}
   .support-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
   .support-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border:1px dashed #eef4ff;border-radius:8px;background:#fff}
-  .support-item .meta { display:flex; flex-direction:column; gap:4px; max-width:70% }
-  .support-item .meta > .filename { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-  .small-muted{color:var(--muted);font-size:13px}
-  /* cap support list height within modal */
-  #mSupportList { max-height: 36vh; overflow:auto; }
-  /* Receipt row visual treatment */
-.receipt-row { background: #fbfdff; border-left: 4px solid #f59e0b; }
-.receipt-row .number { font-weight:700; color:#92400e; }
-.receipt-badge { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; background:#fff7ed; color:#92400e; margin-left:8px; font-weight:700; }
+  #showApprovalWrap .compact, #showArchivedWrap .compact { line-height:1; display:inline-flex; align-items:center; }
+  .filter[type="checkbox"]{ width:18px; height:18px; padding:0; margin:0; }
+  #categoryFilter { display: none !important; }
 </style>
 <!-- SheetJS for XLSX export -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/shim.min.js"></script>
@@ -119,26 +112,39 @@
 
   <div class="card">
     <div class="toolbar" id="toolbarArea">
-      <input id="q" class="filter" placeholder="Search by vendor, invoice #, amount or tag" style="width:260px" />
+      <input id="q" class="filter" placeholder="Search by vendor, invoice #, amount or tag" style="width:240px" />
       <label class="compact">From</label><input id="dateFrom" type="date" class="filter" />
       <label class="compact">To</label><input id="dateTo" type="date" class="filter" />
       <select id="categoryFilter" class="filter">
         <option value="">All categories</option><option>Office Supplies</option><option>Travel</option><option>Rent</option><option>Entertainment</option><option>Consulting</option><option>Logistics</option><option>Maintenance</option>
       </select>
 
-      <select id="statusFilter" class="filter">
-        <option value="">All statuses</option>
-        <option value="pending_review">Pending Review</option>
-        <option value="pending_approval">Pending Approval</option>
-        <option value="approved_electronic">Approved (Electronic)</option>
-        <option value="approved_physical">Approved (Physical)</option>
-        <option value="changes_requested">Changes Requested</option>
-        <option value="rejected">Rejected</option>
+      <div id="approvalFilterWrap" style="display:none;align-items:center">
+        <select id="statusFilter" class="filter">
+          <option value="">All approval statuses</option>
+          <option value="pending_review">Pending Review</option>
+          <option value="pending_approval">Pending Approval</option>
+          <option value="approved_electronic">Approved (Electronic)</option>
+          <option value="approved_physical">Approved (Physical)</option>
+          <option value="changes_requested">Changes Requested</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      <select id="paymentStatusFilter" class="filter">
+        <option value="">All payment statuses</option>
+        <option value="unpaid">Unpaid</option>
+        <option value="paid">Paid</option>
       </select>
 
-      <div id="showCompletedWrap" style="display:flex;align-items:center;gap:8px;margin-left:8px">
-        <label class="compact">Show completed</label>
-        <input id="showCompleted" type="checkbox" class="filter" />
+      <div id="showArchivedWrap" style="display:flex;align-items:center;gap:8px;margin-left:8px">
+        <label class="compact">Show Archived</label>
+        <input id="showArchived" type="checkbox" class="filter" />
+      </div>
+
+      <div id="showApprovalWrap" style="display:flex;align-items:center;gap:8px;margin-left:8px">
+        <label class="compact" for="toggleApprovalCol" style="margin:0">Show Approval Column</label>
+        <input id="toggleApprovalCol" type="checkbox" class="filter" />
       </div>
 
       <div style="flex:1"></div>
@@ -153,7 +159,8 @@
           <th scope="col">Date</th>
           <th scope="col" class="amount">Amount</th>
           <th scope="col" class="status">Status</th>
-          <th scope="col" style="width:260px">Actions</th>
+          <th scope="col" class="approval-col hidden">Approval</th>
+          <th scope="col" style="width:320px">Actions</th>
         </tr>
       </thead>
       <tbody id="inboxBody"></tbody>
@@ -181,183 +188,7 @@
   </div>
 </div>
 
-<!-- Manual invoice modal (updated UI) -->
-<div id="manualModalBackdrop" class="modal-backdrop" aria-hidden="true" style="display:none;align-items:center;justify-content:center;z-index:700">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manualModalTitle" style="max-width:920px; width:92%;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div><div id="manualModalTitle" style="font-weight:800">Create manual invoice</div><div class="small" style="color:var(--muted)">Fill required fields and attach supporting documents</div></div>
-      <div><button id="manualClose" class="btn btn-outline">✕</button></div>
-    </div>
-
-    <div class="modal-body">
-      <div class="grid" style="display:grid;grid-template-columns:1fr 420px;gap:12px">
-        <div>
-          <div style="display:flex;gap:12px">
-            <div style="flex:1" class="field">
-              <label class="compact">Vendor</label>
-              <input id="mVendor" class="input" placeholder="ACME Supplies Co." />
-            </div>
-            <div style="width:160px" class="field">
-              <label class="compact">Invoice Date</label>
-              <input id="mDate" type="date" class="input" />
-            </div>
-          </div>
-
-          <div style="display:flex;gap:12px;align-items:flex-end">
-            <div style="flex:1" class="field">
-              <label class="compact">Invoice number</label>
-              <input id="mNumber" class="input" placeholder="INV-2025-001" />
-            </div>
-            <div style="width:180px" class="field">
-              <label class="compact">Total</label>
-              <input id="mTotal" class="input" placeholder="$0.00" />
-            </div>
-          </div>
-
-          <div class="field">
-            <label class="compact">Category</label>
-            <select id="mCategory" class="filter">
-              <option>Office Supplies</option><option>Travel</option><option>Rent</option><option>Entertainment</option><option>Consulting</option><option>Logistics</option><option>Maintenance</option>
-            </select>
-          </div>
-
-          <div style="margin-top:8px;font-weight:700">Line items</div>
-          <table class="line-items" id="mLineItemsTable" aria-label="Manual line items">
-            <thead>
-              <tr><th style="width:48%">Description</th><th style="width:12%">Qty</th><th style="width:13%">Unit</th><th style="width:13%">Tax</th><th style="width:14%">Amount</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-            <div class="small-muted">Totals recalc automatically when quantity or unit price changes</div>
-            <div style="display:flex;gap:8px">
-              <button id="mAddLine" class="action-btn">Add line</button>
-              <button id="mRecalc" class="upload-neutral">Recalculate</button>
-            </div>
-          </div>
-
-          <div class="totals-block" style="margin-top:12px">
-            <div class="totals-inner" style="width:320px">
-              <div style="display:flex;justify-content:space-between"><div class="small-muted">Subtotal</div><div id="mSubtotal" style="font-weight:800">$0.00</div></div>
-              <div style="display:flex;justify-content:space-between;margin-top:6px"><div class="small-muted">Total Tax</div><div id="mTotalTax" style="font-weight:800">$0.00</div></div>
-              <div style="border-top:1px solid #eef4ff;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between"><div style="font-weight:900">Grand Total</div><div id="mGrandTotal" style="font-weight:900">$0.00</div></div>
-              <div id="mTotalMismatch" style="color:#b45309;font-size:13px;margin-top:6px;display:none">Calculated total does not match entered total. Please verify.</div>
-            </div>
-          </div>
-
-          <div class="field" style="margin-top:10px">
-            <label class="compact">Notes</label>
-            <textarea id="mNote" class="input" rows="3" placeholder="Missing delivery slip"></textarea>
-          </div>
-        </div>
-
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div style="font-weight:700">Supporting documents</div>
-            <div class="small">Upload or link system doc</div>
-          </div>
-
-          <div class="link-docs" style="margin-top:8px">
-            <select id="mPaymentTypeSelect">
-              <option value="">Select type</option>
-              <option value="Payment Request">Payment Request</option>
-              <option value="Payment Order">Payment Order</option>
-              <option value="Other documents">Other documents</option>
-            </select>
-            <input id="mPaymentUploadSelect" type="file" multiple />
-            <button id="mAttachTypeBtn" class="action-btn">Attach</button>
-          </div>
-
-          <div class="link-docs" style="margin-top:8px">
-            <select id="mLinkedDocSelect">
-              <option value="">Select existing system document to link</option>
-              <option value="INV-2025-001.pdf|Payment Request">INV-2025-001.pdf</option>
-              <option value="Payment Receipt - INV-2025-001.pdf|Payment Request">Payment Receipt - INV-2025-001.pdf</option>
-              <option value="Payment-Order_INV-2025-001.pdf|Payment Order">Payment-Order_INV-2025-001.pdf</option>
-            </select>
-            <button id="mLinkDocBtn" class="action-btn">Link</button>
-          </div>
-
-          <div style="margin-top:8px">
-            <div class="small-muted">Linked files appear below with View / Download / Remove options.</div>
-          </div>
-
-          <div class="support-list" id="mSupportList" aria-live="polite" style="margin-top:12px"></div>
-
-          <div style="margin-top:16px;border-top:1px solid #eef4ff;padding-top:12px">
-            <div style="font-weight:700;margin-bottom:6px">Payment destination</div>
-            <div style="display:flex;gap:12px;align-items:center">
-              <label class="small"><input id="mPayVendorRd" name="mPayDest" type="radio" checked /> Pay vendor</label>
-              <label class="small"><input id="mReimburseRd" name="mPayDest" type="radio" /> Reimburse employee</label>
-            </div>
-
-            <div id="mEmployeeBlock" style="margin-top:8px;display:none">
-              <div class="field"><label class="compact">Employee ID</label><input id="mEmployeeId" class="input" /></div>
-              <div class="field"><label class="compact">Employee name</label><input id="mEmployeeName" class="input" /></div>
-            </div>
-
-            <div class="small-muted" style="margin-top:8px">Missing delivery slip</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-footer">
-      <button id="manualCancel" class="btn btn-outline">Cancel</button>
-      <button id="manualSaveDraft" class="action-btn">Save draft</button>
-      <button id="manualSave" class="btn btn-primary">Create invoice</button>
-    </div>
-  </div>
-</div>
-
-<!-- Detail panel (unchanged) -->
-<div id="detailPanel" class="detail-panel" role="dialog" aria-modal="true" style="display:none">
-  <div class="detail-card card" role="document">
-    <div>
-      <div class="detail-header">
-        <button id="backToInbox" class="btn btn-outline">← Back to list</button>
-        <div style="flex:1"></div>
-        <div id="detailId" class="compact" style="color:var(--muted)"></div>
-      </div>
-      <div style="font-weight:700;margin-top:12px">History</div>
-      <div id="historyList"></div>
-    </div>
-    <div style="width:360px">
-      <div style="font-weight:700;margin-bottom:8px">Extracted data</div>
-      <div class="field"><label class="compact">PO</label><input id="dPO" class="input" /></div>
-      <div class="field"><label class="compact">Tax</label><input id="dTax" class="input" /></div>
-    </div>
-  </div>
-</div>
-
-<!-- Upload panel simplified -->
-<div id="uploadBackdrop" class="upload-backdrop" aria-hidden="true" style="display:none">
-  <div id="uploadPanel" class="upload-panel" role="dialog" aria-modal="true" aria-labelledby="uploadPanelTitle" style="background:#fff;padding:16px;border-radius:12px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div><div id="uploadPanelTitle" class="h">Upload</div><div id="uploadPanelSubtitle" class="compact" style="color:var(--muted)">Select files to upload</div></div>
-      <div><button id="closeUploadPanel" class="btn btn-outline">✕</button></div>
-    </div>
-    <label class="input-file" id="panelFileLabel" style="display:block;padding:12px;border:1px dashed #e6eef6;border-radius:8px;background:#fbfdff;text-align:center;cursor:pointer">Click to choose files
-      <input id="panelFileInput" type="file" accept=".pdf,image/*" multiple style="display:none" />
-    </label>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-      <button id="panelCancel" class="btn btn-outline">Cancel</button>
-      <button id="panelUpload" class="btn btn-primary">Upload</button>
-    </div>
-    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><strong>Upload Status & Progress</strong><div class="small" style="margin-top:4px;color:var(--muted)">Recent uploads and OCR progress</div></div>
-        <div style="display:flex;gap:8px;align-items:center"><button id="clearUploadList" class="upload-neutral" style="font-weight:600;padding:6px 10px">Clear</button></div>
-      </div>
-      <div id="uploadList" style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
-        <div class="small-muted" style="padding:12px">No recent uploads</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Payment modal backdrop centered -->
+<!-- Payment modal backdrop centered (restored original layout and controls) -->
 <div id="paymentModalBackdrop" class="modal-backdrop" aria-hidden="true" style="display:none;align-items:center;justify-content:center">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle">
     <div style="font-weight:700;margin-bottom:8px" id="paymentModalTitle">Settle invoice</div>
@@ -447,13 +278,12 @@
 </div>
 
 <script>
-/* Full invoice dataset */
+/* Restored original demo invoices dataset (full set) */
 let invoices = [
   { id:'inv-001', vendor:'ACME Supplies', number:'INV-1001', date:'2025-09-28', amount:1250.00, status:'pending_review', category:'Office Supplies', items:[{desc:'Paper',qty:10,price:12.5}], history:['Submitted by assistant • 2h ago'], directorAction:null, attachments:[] },
   { id:'inv-002', vendor:'Travel Co', number:'INV-1002', date:'2025-09-20', amount:420.00, status:'approved_electronic', category:'Travel', items:[{desc:'Taxi',qty:1,price:120},{desc:'Hotel',qty:1,price:300}], history:['Uploaded • Yesterday','Director approved electronically • 2025-10-02 09:15'], directorAction:{type:'approved_electronic',note:'Approved for payment',time:'2025-10-02 09:15'}, attachments:[], completionTag:'Sent to TRG', archivedCompleted:false },
-  { id:'inv-003', vendor:'OfficeMax', number:'INV-1003', date:'2025-09-12', amount:210.00, status:'pending_approval', category:'Office Supplies', items:[{desc:'Staples',qty:5,price:42}], history:['Ready'], directorAction:null, attachments:[] },
+  { id:'inv-003', vendor:'OfficeMax', number:'INV-1003', date:'2025-09-12', amount:210.00, status:'approved_electronic', paymentStatus:'unpaid', category:'Office Supplies', items:[{desc:'Staples',qty:5,price:42}], history:['Ready'], directorAction:null, attachments:[] },
   { id:'inv-004', vendor:'Catering Ltd', number:'INV-1004', date:'2025-10-01', amount:980.00, status:'rejected', category:'Entertainment', items:[{desc:'Lunch',qty:1,price:980}], history:['Rejected by reviewer • 1d ago'], directorAction:{type:'rejected',note:'Not eligible',time:'2025-10-02 09:00'}, attachments:[] },
-    // Receipt rows (treated like invoices for inbox)
   { id:'rec-001', vendor:'Cafe Corner', number:'REC-2025-1001', date:'2025-09-15', amount:48.75, status:'pending_review', category:'Travel', items:[{desc:'Team coffee & snacks',qty:1,price:48.75}], history:['Receipt uploaded • 2025-09-15 10:12'], directorAction:null, attachments:[{name:'CafeCorner-Receipt-09015.pdf',type:'Receipt'}] },
   { id:'rec-002', vendor:'TaxiFast', number:'REC-2025-1002', date:'2025-09-16', amount:22.40, status:'pending_review', category:'Travel', items:[{desc:'Airport taxi',qty:1,price:22.40}], history:['Receipt uploaded • 2025-09-16 08:45'], directorAction:null, attachments:[{name:'TaxiFast-09016.jpg',type:'Receipt'}] },
   { id:'inv-005', vendor:'Consulting LLC', number:'INV-1005', date:'2025-09-30', amount:3400.00, status:'approved_physical', category:'Consulting', items:[{desc:'Consulting fee',qty:1,price:3400}], history:['Submitted','Director approved (will sign physically) • 2025-10-02 10:30'], directorAction:{type:'approved_physical',note:'Will sign in person',time:'2025-10-02 10:30'}, attachments:[], completionTag:'Will be reimbursed on payday', archivedCompleted:false },
@@ -464,8 +294,33 @@ let invoices = [
   { id:'inv-007', vendor:'Stationery Co', number:'INV-1007', date:'2025-10-02', amount:75.00, status:'changes_requested', category:'Office Supplies', items:[{desc:'Pens',qty:15,price:5}], history:['Uploaded • 1h ago','Director requested changes • 2025-10-02 11:00'], directorAction:{type:'changes_requested',note:'Please correct vendor code',time:'2025-10-02 11:00'}, attachments:[] },
   { id:'inv-008', vendor:'Maintenance Co', number:'INV-1008', date:'2025-10-03', amount:620.00, status:'pending_review', category:'Maintenance', items:[{desc:'Repair',qty:1,price:620}], history:['Submitted • 30m ago'], directorAction:null, attachments:[] }
 ];
+// restore one rejected invoice
+invoices.push({
+  id: 'inv-REJ-001',
+  vendor: 'Returned Supplies Co',
+  number: 'INV-REJ-001',
+  date: '2025-10-10',
+  amount: 175.50,
+  status: 'rejected',
+  category: 'Office Supplies',
+  items: [{ desc: 'Returned widget', qty: 1, price: 175.5 }],
+  history: ['Uploaded • 2025-10-10', 'Rejected by director • 2025-10-10 14:00'],
+  directorAction: { type: 'rejected', note: 'Incorrect pricing', time: '2025-10-10 14:00' },
+  attachments: [],
+  completionTag: 'Rejected',
+  archivedCompleted: false,
+  paymentRecords: [],
+  balanceRemaining: 175.5,
+  paymentStatus: 'unpaid'
+});
 
-/* Option B: seed demo paymentRecords so exports contain data */
+// debug: confirm insertion and refresh UI
+console.log('restored rejected invoice inserted', invoices.find(i => i.id === 'inv-REJ-001'));
+if (typeof renderInbox === 'function') {
+  try { renderInbox(); } catch(e) { /* renderInbox may not be defined yet during initial parse */ }
+}
+
+/* Seed demo paymentRecords so exports contain data and compute balances */
 (function seedDemoPayments(){
   const demoMap = {
     'inv-009': [{ type:'pay', amount:250.00, method:'Bank transfer', ref:'TR-900', date:'2025-08-16', vendorName:'Vendor A' }],
@@ -473,12 +328,17 @@ let invoices = [
     'inv-002': [{ type:'pay', amount:420.00, method:'Bank transfer', ref:'TR-420', date:'2025-09-21', vendorName:'Travel Co' }]
   };
   invoices.forEach(inv => {
+    if(!inv.paymentRecords) inv.paymentRecords = [];
     if(demoMap[inv.id]){
-      inv.paymentRecords = inv.paymentRecords || [];
       demoMap[inv.id].forEach(p => inv.paymentRecords.push(Object.assign({}, p)));
-      // set balanceRemaining if not present or recompute
-      const paid = inv.paymentRecords.reduce((s,r)=> s + (Number(r.amount) || 0), 0);
-      inv.balanceRemaining = Math.max(0, Number(inv.amount || 0) - paid);
+    }
+    const paid = (inv.paymentRecords || []).reduce((s,r)=> s + (Number(r.amount) || 0), 0);
+    inv.balanceRemaining = Math.max(0, Number(inv.amount || 0) - paid);
+    if(inv.balanceRemaining <= 0){
+      inv.paymentStatus = 'paid';
+      inv.archivedCompleted = true;
+    } else {
+      if(typeof inv.paymentStatus === 'undefined') inv.paymentStatus = 'unpaid';
     }
   });
 })();
@@ -503,6 +363,14 @@ function statusLabel(s){
   if(s==='rejected') return 'Rejected';
   return s;
 }
+function paymentStatusClass(p){
+  if(p==='paid') return 's-paid';
+  return 's-unpaid';
+}
+function paymentStatusLabel(p){
+  if(p==='paid') return 'Paid';
+  return 'Unpaid';
+}
 function inDateRange(invDateISO, fromISO, toISO){
   if(!fromISO && !toISO) return true;
   const invD = new Date(invDateISO + 'T00:00:00');
@@ -511,31 +379,53 @@ function inDateRange(invDateISO, fromISO, toISO){
   return true;
 }
 
-/* Render inbox */
+/* Render inbox (paid always visible; Show Archived checkbox shows archived invoices together with rejected invoices) */
 function renderInbox(){
   const tbody = getById('inboxBody');
   if(!tbody) return;
   tbody.innerHTML = '';
   const q = (getById('q') && getById('q').value.toLowerCase()) || '';
   const st = getById('statusFilter') ? getById('statusFilter').value : '';
+  const payFilter = getById('paymentStatusFilter') ? getById('paymentStatusFilter').value : '';
   const cat = getById('categoryFilter') ? getById('categoryFilter').value : '';
   const from = getById('dateFrom') ? getById('dateFrom').value : '';
   const to = getById('dateTo') ? getById('dateTo').value : '';
-  const showCompleted = getById('showCompleted') ? getById('showCompleted').checked : false;
+  const showArchived = getById('showArchived') ? getById('showArchived').checked : false;
   const tagFilter = getById('completionTagFilter') ? (getById('completionTagFilter').value || '').trim() : '';
+  const showApprovalCol = getById('toggleApprovalCol') ? getById('toggleApprovalCol').checked : false;
+
+  // toggle approval column visibility on table header cells
+  const ths = document.querySelectorAll('.approval-col');
+  ths.forEach(h => { if(showApprovalCol) h.classList.remove('hidden'); else h.classList.add('hidden'); });
 
   invoices.forEach(inv => {
     if(typeof inv.balanceRemaining === 'undefined') inv.balanceRemaining = Number(inv.amount || 0);
     if(typeof inv.paymentRecords === 'undefined') inv.paymentRecords = [];
     if(typeof inv.scheduledPayments === 'undefined') inv.scheduledPayments = [];
+    if(typeof inv.paymentStatus === 'undefined') inv.paymentStatus = 'unpaid';
 
-    if(showCompleted){
-      if(!inv.archivedCompleted) return;
+    // Archive / rejected visibility rules
+    // Always keep paid invoices visible.
+    // Always show rejected invoices so user can act on them immediately.
+    // When Show Archived is OFF: hide archived non-paid items.
+    // When Show Archived is ON: include archived items as well.
+    if (inv.paymentStatus === 'paid') {
+      // allowed to show
     } else {
-      if(inv.archivedCompleted) return;
+      if (inv.status === 'rejected') {
+        // allow rejected invoices through so the user can Archive them
+      } else {
+        if (!showArchived) {
+          if (inv.archivedCompleted) return; // hide archived non-paid rows
+        } else {
+          // Show Archived is ON: show archived items only (non-rejected already allowed above)
+          if (!inv.archivedCompleted) return;
+        }
+      }
     }
 
     if (st && inv.status !== st) return;
+    if (payFilter && inv.paymentStatus !== payFilter) return;
     if (cat && cat !== '' && inv.category !== cat) return;
     if (!inDateRange(inv.date, from, to)) return;
 
@@ -560,41 +450,53 @@ function renderInbox(){
     const tdDate = document.createElement('td'); tdDate.textContent = inv.date || ''; tr.appendChild(tdDate);
     const tdAmount = document.createElement('td'); tdAmount.className = 'amount'; tdAmount.textContent = '$' + (Number(inv.amount || 0)).toFixed(2); tr.appendChild(tdAmount);
 
+    // Status column shows only payment status
     const tdStatus = document.createElement('td'); tdStatus.className = 'status';
     const span = document.createElement('span');
-    if(inv.archivedCompleted){
-      if(inv.balanceRemaining <= 0){
-        span.className = 'status s-paid'; span.textContent = 'Paid';
-      } else {
-        span.className = 'status s-to-be-paid'; span.textContent = 'Completed (unsettled)';
-      }
-    } else {
-      span.className = 'status ' + statusClass(inv.status); span.textContent = statusLabel(inv.status);
-    }
-    tdStatus.appendChild(span); tr.appendChild(tdStatus);
+    const pClass = paymentStatusClass(inv.paymentStatus);
+    span.className = 'status ' + pClass;
+    span.textContent = paymentStatusLabel(inv.paymentStatus);
+    span.title = statusLabel(inv.status);
+    tdStatus.appendChild(span);
+    tr.appendChild(tdStatus);
+
+    // Approval column (thin), hidden by default, toggled by checkbox
+    const tdApproval = document.createElement('td'); tdApproval.className = 'approval-col compact';
+    if(!getById('toggleApprovalCol').checked) tdApproval.classList.add('hidden');
+    const aSpan = document.createElement('span');
+    aSpan.className = 'compact';
+    aSpan.textContent = statusLabel(inv.status);
+    if(inv.directorAction && inv.directorAction.note) aSpan.title = inv.directorAction.note;
+    tdApproval.appendChild(aSpan);
+    tr.appendChild(tdApproval);
 
     const tdActions = document.createElement('td'); tdActions.className = 'compact actions';
 
     if(inv.archivedCompleted){
-      if(inv.balanceRemaining > 0){
+      if(inv.paymentStatus === 'paid' || (Number(inv.balanceRemaining||0) <= 0)){
+        const done = document.createElement('div'); done.className='compact'; done.textContent = 'Settled';
+        tdActions.appendChild(done);
+      } else {
         const btnOpen = document.createElement('button'); btnOpen.className = 'btn btn-outline'; btnOpen.type = 'button'; btnOpen.textContent = 'Open';
         btnOpen.addEventListener('click', ()=> {
           window.location.href = 'Assistant_View_Approved_Invoice.html?id=' + encodeURIComponent(inv.id);
         });
         tdActions.appendChild(btnOpen);
 
-        if(inv.employeeExpense){
+        if(inv.employeeExpense || (inv.paymentStatus === 'unpaid' && inv.employeeExpense)){
           const btnReimb = document.createElement('button'); btnReimb.className='payment-primary'; btnReimb.type='button'; btnReimb.dataset.id=inv.id; btnReimb.textContent='Reimburse employee';
           btnReimb.addEventListener('click', (e)=> openSettleModal(inv.id,'reimburse'));
           tdActions.appendChild(btnReimb);
         } else {
-          const btnPay = document.createElement('button'); btnPay.className='payment-primary'; btnPay.type='button'; btnPay.dataset.id=inv.id; btnPay.textContent='Pay';
-          btnPay.addEventListener('click', (e)=> openSettleModal(inv.id,'pay'));
-          tdActions.appendChild(btnPay);
+          if(inv.paymentStatus === 'unpaid'){
+            const btnPay = document.createElement('button'); btnPay.className='payment-primary'; btnPay.type='button'; btnPay.dataset.id=inv.id; btnPay.textContent='Pay';
+            btnPay.addEventListener('click', (e)=> openSettleModal(inv.id,'pay'));
+            tdActions.appendChild(btnPay);
+          } else {
+            const done = document.createElement('div'); done.className='compact'; done.textContent = 'Settled';
+            tdActions.appendChild(done);
+          }
         }
-      } else {
-        const done = document.createElement('div'); done.className='compact'; done.textContent = 'Settled';
-        tdActions.appendChild(done);
       }
     } else {
       const aOpen = document.createElement('a');
@@ -618,21 +520,45 @@ function renderInbox(){
       tdActions.appendChild(aOpen);
 
       if(inv.status === 'pending_review'){
-        const btnSubmit = document.createElement('button'); btnSubmit.className='btn btn-outline submit'; btnSubmit.type='button'; btnSubmit.dataset.id=inv.id; btnSubmit.textContent='Submit'; tdActions.appendChild(btnSubmit);
+        const btnSubmit = document.createElement('button'); btnSubmit.className = 'btn btn-outline submit'; btnSubmit.type = 'button'; btnSubmit.dataset.id = inv.id; btnSubmit.textContent = 'Submit'; tdActions.appendChild(btnSubmit);
       }
 
       if(inv.status === 'changes_requested'){
-        const btnResubmit = document.createElement('button'); btnResubmit.className='btn btn-outline resubmit-row'; btnResubmit.type='button'; btnResubmit.dataset.id=inv.id; btnResubmit.textContent='Resubmit'; tdActions.appendChild(btnResubmit);
+        const btnResubmit = document.createElement('button'); btnResubmit.className = 'btn btn-outline resubmit-row'; btnResubmit.type = 'button'; btnResubmit.dataset.id = inv.id; btnResubmit.textContent = 'Resubmit'; tdActions.appendChild(btnResubmit);
       }
 
       if(inv.status === 'pending_review'){
-        const btnDelete = document.createElement('button'); btnDelete.className='btn btn-outline delete'; btnDelete.type='button'; btnDelete.dataset.id = inv.id;
+        const btnDelete = document.createElement('button'); btnDelete.className = 'btn btn-outline delete'; btnDelete.type = 'button'; btnDelete.dataset.id = inv.id;
         btnDelete.style.color='var(--danger)'; btnDelete.style.borderColor='#fee2e2'; btnDelete.textContent='Delete'; tdActions.appendChild(btnDelete);
       }
 
-      if((inv.status === 'approved_electronic' || inv.status === 'approved_physical' || inv.status === 'rejected') && !getById('showCompleted').checked){
-        const btnCompleted = document.createElement('button'); btnCompleted.className = 'btn mark-completed'; btnCompleted.type='button'; btnCompleted.dataset.id=inv.id; btnCompleted.textContent='Mark as Completed';
-        tdActions.appendChild(btnCompleted);
+      // For approved invoices show Pay and Archive buttons
+      if (inv.status === 'approved_electronic' || inv.status === 'approved_physical') {
+        const btnPay = document.createElement('button');
+        btnPay.className = 'payment-primary';
+        btnPay.type = 'button';
+        btnPay.dataset.id = inv.id;
+        btnPay.textContent = 'Pay';
+        btnPay.addEventListener('click', () => openSettleModal(inv.id, inv.employeeExpense ? 'reimburse' : 'pay'));
+        tdActions.appendChild(btnPay);
+
+        // Archive button for approved invoices
+        const btnArchive = document.createElement('button');
+        btnArchive.className = 'btn mark-completed archive';
+        btnArchive.type = 'button';
+        btnArchive.dataset.id = inv.id;
+        btnArchive.textContent = 'Archive';
+        tdActions.appendChild(btnArchive);
+      }
+
+      // For rejected invoices, show Archive button when the invoice is not already archived
+      if (inv.status === 'rejected' && !inv.archivedCompleted) {
+        const btnArchive = document.createElement('button');
+        btnArchive.className = 'btn mark-completed archive';
+        btnArchive.type = 'button';
+        btnArchive.dataset.id = inv.id;
+        btnArchive.textContent = 'Archive';
+        tdActions.appendChild(btnArchive);
       }
     }
 
@@ -641,7 +567,7 @@ function renderInbox(){
   });
 }
 
-/* Inline picker and completion-tag injection */
+/* Inline picker and completion-tag injection (same as original) */
 function showInlineTagPicker(anchorBtn, invId){
   const existing = anchorBtn.parentElement.querySelector('.tag-picker');
   if(existing) return;
@@ -682,6 +608,12 @@ function showInlineTagPicker(anchorBtn, invId){
     inv.completionTag = tag;
     inv.history = (inv.history||[]).concat([`Assistant marked completed${tag?': '+tag:''} • ${new Date().toLocaleString()}`]);
     inv.archivedCompleted = true;
+    if(typeof inv.balanceRemaining === 'undefined') inv.balanceRemaining = Number(inv.amount||0);
+    if(Number(inv.balanceRemaining || 0) <= 0){
+      inv.paymentStatus = 'paid';
+    } else {
+      inv.paymentStatus = inv.paymentStatus || 'unpaid';
+    }
     removePicker();
     renderInbox();
     alert('Marked completed (demo).');
@@ -715,267 +647,21 @@ function createCompletionTagSelect() {
 }
 function removeInjectedCompletionTagSelect() {
   const existing = document.getElementById('completionTagFilter');
-  if (existing && existing.parentElement && existing.parentElement.id === 'showCompletedWrap') {
+  if (existing && existing.parentElement && existing.parentElement.id === 'showArchivedWrap') {
     existing.remove();
   }
 }
 
-/* IMPORTANT: define closeDetail so listeners that reference it won't error */
-function closeDetail(){ 
-  const panel = getById('detailPanel');
-  if(panel) panel.style.display = 'none';
-}
-
-/* Manual invoice modal wiring (enhanced UI) */
-(function(){
-  const openBtn = getById('newManual');
-  const supportRegistry = {}; // temp attachments per modal
-
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]);}
-  function parseMoney(v){ if(typeof v!=='string') v = String(v||''); v = v.replace(/[^\d.\-]/g,''); const n=parseFloat(v); return Number.isFinite(n)?n:0; }
-  function fmtMoney(n){ return '$'+Number(n||0).toFixed(2); }
-
-  function openManualModal(){
-    const b = getById('manualModalBackdrop');
-    if(!b) return;
-    // reset fields
-    getById('mVendor').value = '';
-    getById('mNumber').value = '';
-    getById('mDate').value = new Date().toISOString().slice(0,10);
-    getById('mTotal').value = '';
-    getById('mCategory').value = 'Office Supplies';
-    getById('mNote').value = 'Missing delivery slip';
-    getById('mEmployeeBlock').style.display = 'none';
-    getById('mEmployeeId').value = ''; getById('mEmployeeName').value = '';
-
-    // clear lines and seed two example lines
-    const tbody = getById('mLineItemsTable').querySelector('tbody'); tbody.innerHTML = '';
-    addManualLine({desc:'Printer paper A4', qty:1, unit:75.00, tax:0.00});
-    addManualLine({desc:'toner cartridge', qty:1, unit:255.00, tax:0.00});
-    computeManualTotals();
-
-    // clear support list
-    const sl = getById('mSupportList'); sl.innerHTML = '';
-    Object.keys(supportRegistry).forEach(k=>delete supportRegistry[k]);
-
-    b.style.display = 'flex'; b.setAttribute('aria-hidden','false');
-
-    // ensure modal body scroll starts at top and receives focus
-    const bodyEl = document.querySelector('#manualModalBackdrop .modal .modal-body');
-    if(bodyEl){ bodyEl.scrollTop = 0; bodyEl.focus && bodyEl.focus(); }
-  }
-
-  function closeManualModal(){ const b=getById('manualModalBackdrop'); if(!b) return; b.style.display='none'; b.setAttribute('aria-hidden','true'); }
-
-  function addManualLine(data){
-    const tbody = getById('mLineItemsTable').querySelector('tbody');
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input value="${escapeHtml(data.desc||'')}"></td>
-                    <td><input value="${data.qty!=null?data.qty:1}"></td>
-                    <td><input value="${fmtMoney(data.unit!=null?data.unit:0)}"></td>
-                    <td><input value="${fmtMoney(data.tax!=null?data.tax:0)}"></td>
-                    <td><input value="${fmtMoney(((data.qty||0)*(data.unit||0)) + (data.tax||0))}"></td>`;
-    tbody.appendChild(tr);
-
-    const inputs = tr.querySelectorAll('input');
-    inputs.forEach(i=> i.addEventListener('input', ()=> {
-      const q = parseMoney(tr.cells[1].querySelector('input').value);
-      const up = parseMoney(tr.cells[2].querySelector('input').value);
-      const tax = parseMoney(tr.cells[3].querySelector('input').value);
-      const amt = (q * up) + tax;
-      tr.cells[4].querySelector('input').value = fmtMoney(amt);
-      computeManualTotals();
-    }));
-  }
-
-  function computeManualTotals(){
-    const rows = getById('mLineItemsTable').querySelectorAll('tbody tr');
-    let subtotal=0,totalTax=0,grand=0;
-    rows.forEach(r=>{
-      const q=parseMoney(r.cells[1].querySelector('input').value);
-      const up=parseMoney(r.cells[2].querySelector('input').value);
-      const tax=parseMoney(r.cells[3].querySelector('input').value);
-      const lineBeforeTax = q * up;
-      const lineAfterTax = lineBeforeTax + tax;
-      subtotal += lineBeforeTax; totalTax += tax; grand += lineAfterTax;
-    });
-    getById('mSubtotal').textContent = fmtMoney(subtotal);
-    getById('mTotalTax').textContent = fmtMoney(totalTax);
-    getById('mGrandTotal').textContent = fmtMoney(grand);
-    const entered = parseMoney(getById('mTotal').value);
-    const mismatchEl = getById('mTotalMismatch');
-    if(!isFinite(entered) || Math.abs(entered - grand) > 0.005) mismatchEl.style.display='block'; else mismatchEl.style.display='none';
-    return {subtotal,totalTax,grand};
-  }
-
-  // wire add line and recalc
-  getById('mAddLine').addEventListener('click', ()=> addManualLine({desc:'',qty:1,unit:0,tax:0}));
-  getById('mRecalc').addEventListener('click', ()=> {
-    const rows = getById('mLineItemsTable').querySelectorAll('tbody tr');
-    rows.forEach(r=>{
-      const q=parseMoney(r.cells[1].querySelector('input').value);
-      const up=parseMoney(r.cells[2].querySelector('input').value);
-      const tax=parseMoney(r.cells[3].querySelector('input').value);
-      const amt=(q*up)+tax;
-      r.cells[4].querySelector('input').value = fmtMoney(amt);
-    });
-    computeManualTotals(); alert('Line totals recalculated (demo).');
-  });
-
-  // attachments
-  getById('mAttachTypeBtn').addEventListener('click', ()=> {
-    const typeSel = getById('mPaymentTypeSelect'); const filesInput = getById('mPaymentUploadSelect');
-    const chosenType = typeSel.value;
-    if(!chosenType){ alert('Please select a type first.'); return; }
-    if(!filesInput.files || filesInput.files.length === 0){ alert('Please choose files to upload.'); return; }
-    Array.from(filesInput.files).forEach((f,i)=>{
-      const id = 'mup-' + (Date.now() + i);
-      const info = { name: f.name, type: chosenType, size: f.size || 2048, contentHtml: `<div style="padding:8px"><strong>${escapeHtml(f.name)}</strong></div>` };
-      supportRegistry[id] = info;
-      appendManualSupport(id, info);
-    });
-    filesInput.value=''; typeSel.value=''; updateManualAttached();
-  });
-
-  getById('mLinkDocBtn').addEventListener('click', ()=> {
-    const sel = getById('mLinkedDocSelect'); const val = sel.value;
-    if(!val){ alert('Choose a document to link.'); return; }
-    const [name, typeRaw] = val.split('|'); const type = typeRaw || 'Other documents';
-    const id = 'mlink-' + Date.now();
-    const info = { name, type, size: 1024, contentHtml: `<div style="padding:8px"><strong>${escapeHtml(name)}</strong></div>` };
-    supportRegistry[id] = info;
-    appendManualSupport(id, info);
-    sel.value = ''; updateManualAttached();
-  });
-
-  function appendManualSupport(id, info){
-    const container = getById('mSupportList');
-    const item = document.createElement('div');
-    item.className = 'support-item';
-    item.dataset.fileid = id;
-    item.innerHTML = `<div class="meta"><div class="filename">${escapeHtml(info.name)}</div><div class="tag small">${escapeHtml(info.type)} • ${Math.round((info.size||0)/1024)} KB</div></div>
-      <div style="display:flex;gap:8px">
-        <button class="action-btn view-support" data-fileid="${id}">View</button>
-        <button class="action-btn download-support" data-fileid="${id}">Download</button>
-        <button class="action-btn remove-support" data-fileid="${id}">Remove</button>
-      </div>`;
-    container.appendChild(item);
-  }
-
-  getById('mSupportList').addEventListener('click', function(e){
-    const v = e.target.closest('.view-support');
-    const d = e.target.closest('.download-support');
-    const r = e.target.closest('.remove-support');
-    if(v){ const id=v.dataset.fileid; openManualPreview(id); }
-    if(d){ const id=d.dataset.fileid; const info = supportRegistry[id]; alert('Download (demo): ' + (info?info.name:id)); }
-    if(r){ const id=r.dataset.fileid; if(confirm('Remove this document?')){ delete supportRegistry[id]; const el=document.querySelector('#mSupportList .support-item[data-fileid="'+id+'"]'); if(el) el.remove(); updateManualAttached(); } }
-  });
-
-  function openManualPreview(id){
-    const info = supportRegistry[id];
-    if(!info){ alert('No preview available'); return; }
-    if(document.getElementById('modalPreview')){
-      document.getElementById('previewTitle').textContent = info.name;
-      document.getElementById('previewContent').innerHTML = info.contentHtml;
-      document.getElementById('previewMeta').textContent = info.type + ' • ' + Math.round((info.size||0)/1024) + ' KB';
-      document.getElementById('modalPreview').style.display='flex';
-      document.getElementById('modalPreview').setAttribute('aria-hidden','false');
-      return;
-    }
-    alert('Preview (demo): ' + info.name);
-  }
-  function updateManualAttached(){ /* UI already updated by append/remove */ }
-
-  // Save draft
-  getById('manualSaveDraft').addEventListener('click', ()=> {
-    try{
-      const newInv = buildManualInvoiceObject('draft');
-      invoices.unshift(newInv);
-      alert('Draft created (demo): ' + newInv.number);
-      closeManualModal();
-      renderInbox();
-    }catch(e){ alert('Failed to create draft: '+e.message); }
-  });
-
-  // Create invoice
-  getById('manualSave').addEventListener('click', ()=> {
-    try{
-      const newInv = buildManualInvoiceObject('pending_review');
-      invoices.unshift(newInv);
-      alert('Manual invoice created (demo): ' + newInv.number);
-      closeManualModal();
-      renderInbox();
-    }catch(e){ alert(e.message); }
-  });
-
-  // Cancel / Close
-  getById('manualCancel').addEventListener('click', closeManualModal);
-  getById('manualClose').addEventListener('click', closeManualModal);
-
-  // payment destination toggle
-  getById('mPayVendorRd').addEventListener('change', ()=> { if(getById('mPayVendorRd').checked) getById('mEmployeeBlock').style.display='none'; });
-  getById('mReimburseRd').addEventListener('change', ()=> { if(getById('mReimburseRd').checked) getById('mEmployeeBlock').style.display='block'; });
-
-  function buildManualInvoiceObject(status){
-    const vendor = (getById('mVendor').value||'').trim();
-    const number = (getById('mNumber').value||'').trim();
-    const date = getById('mDate').value || new Date().toISOString().slice(0,10);
-    const total = parseMoney(getById('mTotal').value || '');
-    const category = (getById('mCategory').value||'').trim();
-    const note = (getById('mNote').value||'').trim();
-    const paymentDest = getById('mReimburseRd').checked ? 'reimburse' : 'vendor';
-    const empId = (getById('mEmployeeId').value||'').trim();
-    const empName = (getById('mEmployeeName').value||'').trim();
-
-    if(!vendor) throw new Error('Please enter vendor');
-    if(!number) throw new Error('Please enter invoice number');
-    if(!date) throw new Error('Please enter invoice date');
-
-    const rows = Array.from(getById('mLineItemsTable').querySelectorAll('tbody tr'));
-    const lines = rows.map(r=>{
-      return {
-        desc: r.cells[0].querySelector('input').value || '',
-        qty: Number(parseMoney(r.cells[1].querySelector('input').value) || 0),
-        unit: Number(parseMoney(r.cells[2].querySelector('input').value) || 0),
-        tax: Number(parseMoney(r.cells[3].querySelector('input').value) || 0)
-      };
-    });
-
-    const calc = computeManualTotals();
-    const amountVal = (isFinite(total) && total > 0) ? total : calc.grand;
-    const id = 'inv-' + Date.now().toString(36);
-    const invObj = {
-      id,
-      vendor,
-      number,
-      date,
-      amount: Number(amountVal.toFixed(2)),
-      balanceRemaining: Number(amountVal.toFixed(2)),
-      status: status,
-      category,
-      items: lines.map(l=>({desc:l.desc, qty:l.qty, price:l.unit})),
-      history: [`Created manually • ${new Date().toLocaleString()}`],
-      attachments: Object.values(supportRegistry).map(s=>({name:s.name,type:s.type})),
-      notes: note,
-      employeeExpense: paymentDest === 'reimburse'
-    };
-    if(paymentDest === 'reimburse'){ invObj.employeeId = empId; invObj.employeeName = empName; }
-    return invObj;
-  }
-
-  if(openBtn) openBtn.addEventListener('click', openManualModal);
-})();
-
 /* DOM ready wiring */
 document.addEventListener('DOMContentLoaded', function(){
-  const showWrap = document.getElementById('showCompletedWrap');
-  const sc = document.getElementById('showCompleted');
+  const showWrap = document.getElementById('showArchivedWrap');
+  const sc = document.getElementById('showArchived');
 
   removeInjectedCompletionTagSelect();
 
   function toggleInlineTagSelect() {
     removeInjectedCompletionTagSelect();
-    if (sc.checked) {
+    if (sc && sc.checked) {
       const sel = createCompletionTagSelect();
       showWrap.appendChild(sel);
       setTimeout(()=>sel.focus(),100);
@@ -983,41 +669,58 @@ document.addEventListener('DOMContentLoaded', function(){
     renderInbox();
   }
 
-  sc.addEventListener('change', toggleInlineTagSelect);
-  sc.addEventListener('input', toggleInlineTagSelect);
+  if (sc) {
+    sc.addEventListener('change', toggleInlineTagSelect);
+    sc.addEventListener('input', toggleInlineTagSelect);
+  }
   toggleInlineTagSelect();
 
-  ['q','statusFilter','categoryFilter','dateFrom','dateTo'].forEach(id=>{
+  ['q','statusFilter','categoryFilter','dateFrom','dateTo','paymentStatusFilter','toggleApprovalCol'].forEach(id=>{
     const el = getById(id); if(el) el.addEventListener('input', ()=> renderInbox());
   });
 
-  // wire upload controls and request navigation
-const newUpload = getById('newUpload');
-if (newUpload) newUpload.addEventListener('click', () => openUploadPanel('single'));
+  const newUpload = getById('newUpload');
+  if (newUpload) newUpload.addEventListener('click', () => openUploadPanel('single'));
 
-const bulkUpload = getById('bulkUpload');
-if (bulkUpload) bulkUpload.addEventListener('click', () => openUploadPanel('bulk'));
+  const bulkUpload = getById('bulkUpload');
+  if (bulkUpload) bulkUpload.addEventListener('click', () => openUploadPanel('bulk'));
 
-// Payment Request should navigate to payment-request.html
-const scanUpload = getById('scanUpload');
-if (scanUpload) scanUpload.addEventListener('click', () => {
-  window.location.href = 'payment-request.html';
-});
+  const scanUpload = getById('scanUpload');
+  if (scanUpload) scanUpload.addEventListener('click', () => { window.location.href = 'payment-request.html'; });
 
-// Advance Payment Request should navigate to advance-payment.html
-const newManualBtn = getById('newManual');
-if (newManualBtn) newManualBtn.addEventListener('click', () => {
-  window.location.href = 'advance-payment.html';
-});
+  const newManualBtn = getById('newManual');
+  if (newManualBtn) newManualBtn.addEventListener('click', () => { window.location.href = 'advance-payment.html'; });
 
-const closeUpload = getById('closeUploadPanel');
-if (closeUpload) closeUpload.addEventListener('click', () => closeUploadPanel());
+  // Toggle Approval filter visibility with approval column checkbox
+  (function wireApprovalFilterToggle(){
+  const toggle = document.getElementById('toggleApprovalCol');
+  const wrap = document.getElementById('approvalFilterWrap');
+  const showApprovalWrap = document.getElementById('showApprovalWrap');
+  if(!toggle || !wrap || !showApprovalWrap) return;
 
-const panelCancel = getById('panelCancel');
-if (panelCancel) panelCancel.addEventListener('click', () => closeUploadPanel());
+  // ensure wrap is placed after the checkbox so it appears to the right
+  if (wrap.parentElement !== showApprovalWrap) {
+    showApprovalWrap.appendChild(wrap);
+  } else {
+    // if already inside, force it to be last to the right
+    showApprovalWrap.removeChild(wrap);
+    showApprovalWrap.appendChild(wrap);
+  }
 
-const panelFileLabel = getById('panelFileLabel');
-if (panelFileLabel) panelFileLabel.addEventListener('click', () => { const f = getById('panelFileInput'); if (f) f.click(); });
+  // styling for inline layout
+  showApprovalWrap.style.display = 'flex';
+  showApprovalWrap.style.alignItems = 'center';
+  showApprovalWrap.style.gap = '8px';
+  wrap.style.display = toggle.checked ? 'flex' : 'none';
+  wrap.style.alignItems = 'center';
+
+  try { renderInbox(); } catch(e){}
+
+  toggle.addEventListener('change', () => {
+    wrap.style.display = toggle.checked ? 'flex' : 'none';
+    try { renderInbox(); } catch(e){}
+  });
+})();
 
 
   renderInbox();
@@ -1039,14 +742,28 @@ getById('inboxBody').addEventListener('click', (e)=>{
   const deleteBtn = e.target.closest('.delete'); if(deleteBtn){
     const id = deleteBtn.dataset.id; const inv=invoices.find(i=>i.id===id); if(!inv) return; if(inv.status!=='pending_review'){ alert('Cannot delete'); return; } if(!confirm(`Delete ${inv.number}?`)) return; invoices=invoices.filter(i=>i.id!==id); renderInbox(); return;
   }
+
+  // Archive buttons (applies to approved and rejected)
+  const archiveBtn = e.target.closest('.archive');
+  if(archiveBtn){
+    const id = archiveBtn.dataset.id; const inv = invoices.find(i=>i.id===id); if(!inv) return;
+    inv.completionTag = inv.completionTag || (inv.status === 'rejected' ? 'Rejected' : 'Archived');
+    inv.history = (inv.history || []).concat([`${inv.status === 'rejected' ? 'Archived as rejected' : 'Archived'} • ${new Date().toLocaleString()}`]);
+    inv.archivedCompleted = true;
+    // Do NOT change paymentStatus when archiving
+    renderInbox();
+    alert((inv.status === 'rejected' ? 'Rejected invoice archived (demo).' : 'Invoice archived (demo).'));
+    return;
+  }
+
   const completedBtn = e.target.closest('.mark-completed'); if(completedBtn){
     const id = completedBtn.dataset.id; const inv=invoices.find(i=>i.id===id); if(!inv) return;
     if(inv.status === 'rejected'){
       inv.completionTag = 'Rejected';
-      inv.history=(inv.history||[]).concat([`Assistant marked completed: Rejected • ${new Date().toLocaleString()}`]);
+      inv.history=(inv.history||[]).concat([`Archived as rejected • ${new Date().toLocaleString()}`]);
       inv.archivedCompleted = true;
       renderInbox();
-      alert('Marked rejected invoice as completed with tag "Rejected" (demo).');
+      alert('Rejected invoice archived (demo).');
       return;
     }
     if(inv.status==='approved_electronic' || inv.status==='approved_physical'){
@@ -1058,42 +775,22 @@ getById('inboxBody').addEventListener('click', (e)=>{
   }
 });
 
-/* upload panel functions */
+/* upload panel helpers (minimal) */
 function openUploadPanel(mode){
   const b = getById('uploadBackdrop');
-  if(!b) return;
+  if(!b) { alert('Upload panel (demo)'); return; }
   b.style.display = 'flex';
   b.setAttribute('aria-hidden','false');
-  const title = getById('uploadPanelTitle');
-  const sub = getById('uploadPanelSubtitle');
-  if(title) {
-    if(mode === 'scan') title.textContent = 'Scan to Upload';
-    else title.textContent = mode === 'single' ? 'Upload' : mode === 'bulk' ? 'Bulk upload' : 'Upload';
-  }
-  if(sub) {
-    if(mode === 'scan') sub.textContent = 'Use your desktop scanner software to scan the document. Then upload the scanned file below.';
-    else sub.textContent = mode === 'single' ? 'Select files to upload' : mode === 'bulk' ? 'Select multiple files to upload' : 'Select files to upload';
-  }
 }
-function closeUploadPanel(){
-  const b = getById('uploadBackdrop');
-  if(!b) return;
-  b.style.display = 'none';
-  b.setAttribute('aria-hidden','true');
-}
-getById('clearUploadList').addEventListener('click', ()=> {
-  const list = document.getElementById('uploadList');
-  if(list) list.innerHTML = '<div class="small-muted" style="padding:12px">No recent uploads</div>';
-});
-getById('panelUpload').addEventListener('click', ()=> {
-  const files = getById('panelFileInput').files;
-  if(!files || files.length === 0){ alert('Choose files (demo)'); return; }
-  alert('Upload simulated (demo).');
-  closeUploadPanel();
-});
+function closeUploadPanel(){ const b=getById('uploadBackdrop'); if(!b) return; b.style.display='none'; b.setAttribute('aria-hidden','true'); }
 
-/* PAYMENT functionality with Employee fields in single and split; modal centered by default */
+/* PAYMENT functionality (restored modal behavior) */
 let _currentSettle = null;
+
+/* Seed demo payments and export helpers are intentionally preserved from earlier file */
+(function seedPaymentsForExports(){
+  // already seeded above; function kept for compatibility
+})();
 
 function openSettleModal(invId, mode){
   const inv = invoices.find(i=>i.id===invId);
@@ -1101,21 +798,21 @@ function openSettleModal(invId, mode){
   _currentSettle = { id: invId, mode };
   const remaining = Number(inv.balanceRemaining || inv.amount || 0);
 
-  // default UI
   const singleMode = getById('singleMode'); if(singleMode) singleMode.checked = true;
   const splitMode = getById('splitMode'); if(splitMode) splitMode.checked = false;
   if(getById('splitPaymentArea')) getById('splitPaymentArea').style.display = 'none';
   if(getById('singlePaymentArea')) getById('singlePaymentArea').style.display = 'block';
 
-  // Prefill amount and type
   if(getById('payAmount')) getById('payAmount').value = remaining.toFixed(2);
   if(getById('payType')) getById('payType').value = (mode === 'reimburse') ? 'reimburse' : (inv.employeeExpense ? 'reimburse' : 'pay');
 
-  // Show/hide employee fields for single payment
   const empFields = getById('employeeFields');
   if(empFields){
     if(getById('payType').value === 'reimburse') empFields.classList.remove('hidden'); else empFields.classList.add('hidden');
   }
+
+  if(getById('payEmployeeId')) getById('payEmployeeId').value = inv.employeeId || '';
+  if(getById('payEmployeeName')) getById('payEmployeeName').value = inv.employeeName || '';
 
   if(getById('payRemaining')) getById('payRemaining').textContent = 'Remaining balance: $' + remaining.toFixed(2);
   if(getById('payDate')) getById('payDate').value = new Date().toISOString().slice(0,10);
@@ -1125,34 +822,18 @@ function openSettleModal(invId, mode){
   if(getById('schedulePayment')) getById('schedulePayment').checked = false;
   if(getById('scheduleSplit')) getById('scheduleSplit').checked = false;
 
-  // clear split rows (split rows include employee fields per line)
   const splitRowsEl = getById('splitRows'); if(splitRowsEl) splitRowsEl.innerHTML = '';
   if(getById('splitSummary')) getById('splitSummary').textContent = '';
 
-  // show centered modal (backdrop uses flex center)
   const backdrop = getById('paymentModalBackdrop');
   if(!backdrop) return;
   backdrop.style.display = 'flex';
   backdrop.setAttribute('aria-hidden','false');
-  const modal = backdrop.querySelector('.modal');
-  if(modal){
-    modal.style.position = 'relative';
-    modal.style.left = '';
-    modal.style.top = '';
-    modal.style.transform = 'none';
-  }
 }
 
-function closePaymentModal(){ 
-  const b = getById('paymentModalBackdrop'); 
-  if(!b) return;
-  b.style.display = 'none';
-  b.setAttribute('aria-hidden','true');
-  _currentSettle = null;
-}
+function closePaymentModal(){ const b = getById('paymentModalBackdrop'); if(!b) return; b.style.display = 'none'; b.setAttribute('aria-hidden','true'); _currentSettle = null; }
 
-/* pay amount remaining calc */
-getById('payAmount').addEventListener('input', ()=> {
+getById('payAmount') && getById('payAmount').addEventListener('input', ()=> {
   if(!_currentSettle) return;
   const inv = invoices.find(i=>i.id===_currentSettle.id);
   if(!inv) return;
@@ -1162,8 +843,7 @@ getById('payAmount').addEventListener('input', ()=> {
   if(getById('payRemaining')) getById('payRemaining').textContent = 'Remaining after this payment: $' + remaining.toFixed(2);
 });
 
-/* Toggle employee fields visibility for single payment */
-getById('payType').addEventListener('change', ()=> {
+getById('payType') && getById('payType').addEventListener('change', ()=> {
   const t = getById('payType').value;
   const employeeFields = getById('employeeFields');
   if (t === 'reimburse') {
@@ -1175,21 +855,121 @@ getById('payType').addEventListener('change', ()=> {
   }
 });
 
-/* utilities */
-function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'})[ch]);}
-function parseMoney(v){ if(typeof v!=='string') v = String(v||''); v = v.replace(/[^\d.\-]/g,''); const n=parseFloat(v); return Number.isFinite(n)?n:0; }
-function fmtMoney(n){ return '$'+Number(n||0).toFixed(2); }
+/* Split rows wiring */
+(function wireSplitActions(){
+  const addBtn = document.getElementById('addSplitRow');
+  if(!addBtn) return;
+  addBtn.addEventListener('click', ()=> {
+    const container = document.getElementById('splitRows');
+    if(!container) return;
+    const row = document.createElement('div');
+    row.className = 'split-row';
+    row.innerHTML = `
+      <input class="split-amount" type="number" step="0.01" min="0" placeholder="Amount" style="width:120px;padding:6px;border-radius:6px;border:1px solid #e6eef6" />
+      <input class="split-date" type="date" style="padding:6px;border-radius:6px;border:1px solid #e6eef6" />
+      <select class="split-method" style="padding:6px;border-radius:6px;border:1px solid #e6eef6">
+        <option>Bank transfer</option><option>Cash</option><option>Card</option><option>Other</option>
+      </select>
+      <select class="split-type" style="padding:6px;border-radius:6px;border:1px solid #e6eef6">
+        <option value="pay">Pay vendor</option><option value="reimburse">Reimburse employee</option>
+      </select>
+      <input class="split-ref" placeholder="Reference" style="padding:6px;border-radius:6px;border:1px solid #e6eef6" />
+      <button class="btn btn-outline split-remove" type="button" style="margin-left:8px">Remove</button>
+    `;
+    container.appendChild(row);
+    const amt = row.querySelector('.split-amount');
+    if(amt) amt.addEventListener('input', updateSplitSummary);
+    const rem = row.querySelector('.split-remove');
+    if(rem) rem.addEventListener('click', ()=> { row.remove(); updateSplitSummary(); });
+    updateSplitSummary();
+  });
+})();
+function updateSplitSummary(){
+  try {
+    const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
+    let total = 0;
+    rows.forEach(r=>{
+      const v = r.querySelector('.split-amount');
+      if(!v) return;
+      const n = parseFloat(v.value || 0) || 0;
+      total += n;
+    });
+    const sumEl = document.getElementById('splitSummary');
+    if(sumEl) sumEl.textContent = 'Split total: $' + total.toFixed(2);
+  } catch(e){}
+}
 
-/* init */
-renderInbox();
+/* Wire payment modal confirm/cancel */
+(function wirePaymentModal(){
+  const cancel = document.getElementById('payModalCancel');
+  const confirm = document.getElementById('payModalConfirm');
+  if(cancel) cancel.addEventListener('click', ()=> {
+    const pb = document.getElementById('paymentModalBackdrop');
+    if(pb) { pb.style.display = 'none'; pb.setAttribute('aria-hidden','true'); }
+    _currentSettle = null;
+  });
+  if(confirm) confirm.addEventListener('click', ()=> {
+    if(!_currentSettle) { 
+      const pb = document.getElementById('paymentModalBackdrop');
+      if(pb) { pb.style.display = 'none'; pb.setAttribute('aria-hidden','true'); }
+      return;
+    }
+    const inv = invoices.find(i=>i.id===_currentSettle.id);
+    if(!inv){ alert('Invoice not found'); const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); } _currentSettle=null; return; }
 
-/* auto-update split summary while modal open */
-setInterval(()=> {
-  const pb = getById('paymentModalBackdrop');
-  if(pb && pb.style.display === 'flex') updateSplitSummary();
-}, 800);
+    if(document.getElementById('singleMode').checked){
+      const type = (document.getElementById('payType') || {}).value || 'pay';
+      const amount = parseFloat((document.getElementById('payAmount') || {}).value || 0) || 0;
+      const method = (document.getElementById('payMethod') || {}).value || '';
+      const ref = (document.getElementById('payRef') || {}).value || '';
+      const date = (document.getElementById('payDate') || {}).value || new Date().toISOString().slice(0,10);
+      const rec = { type, amount, method, ref, date };
+      if(type === 'reimburse'){ rec.employeeId = (document.getElementById('payEmployeeId') || {}).value || ''; rec.employeeName = (document.getElementById('payEmployeeName') || {}).value || ''; }
+      inv.paymentRecords = inv.paymentRecords || [];
+      inv.paymentRecords.push(rec);
+      inv.balanceRemaining = Math.max(0, (inv.balanceRemaining || inv.amount || 0) - amount);
+      if(inv.balanceRemaining <= 0) {
+        inv.paymentStatus = 'paid';
+        inv.archivedCompleted = true;
+      } else {
+        inv.paymentStatus = 'unpaid';
+      }
+      inv.history = (inv.history || []).concat([`Payment recorded • ${new Date().toLocaleString()} • ${amount.toFixed(2)}`]);
+      renderInbox();
+      alert('Payment recorded (demo).');
+      const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); }
+      _currentSettle = null;
+      return;
+    }
 
-/* --- CSV / XLSX export helpers and wiring (clean insertion) --- */
+    const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
+    if(rows.length === 0){ alert('Add at least one split line'); return; }
+    rows.forEach(r=> {
+      const amount = parseFloat((r.querySelector('.split-amount') || {}).value || 0) || 0;
+      const date = (r.querySelector('.split-date') || {}).value || new Date().toISOString().slice(0,10);
+      const method = (r.querySelector('.split-method') || {}).value || '';
+      const type = (r.querySelector('.split-type') || {}).value || 'pay';
+      const ref = (r.querySelector('.split-ref') || {}).value || '';
+      const rec = { type, amount, method, ref, date };
+      inv.paymentRecords = inv.paymentRecords || [];
+      inv.paymentRecords.push(rec);
+      inv.balanceRemaining = Math.max(0, (inv.balanceRemaining || inv.amount || 0) - amount);
+    });
+    if(inv.balanceRemaining <= 0) {
+      inv.paymentStatus = 'paid';
+      inv.archivedCompleted = true;
+    } else {
+      inv.paymentStatus = 'unpaid';
+    }
+    inv.history = (inv.history || []).concat([`Split payments recorded • ${new Date().toLocaleString()}`]);
+    renderInbox();
+    alert('Split payments recorded (demo).');
+    const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); }
+    _currentSettle = null;
+  });
+})();
+
+/* EXPORT helpers (kept from earlier) */
 (function(){
   const EXPORT_COLUMNS = [
     { key: 'invoiceId', header: 'Invoice ID' },
@@ -1204,7 +984,7 @@ setInterval(()=> {
     { key: 'paymentDate', header: 'Payment Date' },
     { key: 'vendorName', header: 'Vendor Name' },
     { key: 'employeeId', header: 'Employee ID' },
-        { key: 'employeeName', header: 'Employee Name' }
+    { key: 'employeeName', header: 'Employee Name' }
   ];
 
   function buildExportRows(){
@@ -1316,124 +1096,8 @@ setInterval(()=> {
   }
 })();
 
-/* Split summary updater */
-function updateSplitSummary(){
-  try {
-    const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
-    let total = 0;
-    rows.forEach(r=>{
-      const v = r.querySelector('.split-amount');
-      if(!v) return;
-      const n = parseFloat(v.value || 0) || 0;
-      total += n;
-    });
-    const sumEl = document.getElementById('splitSummary');
-    if(sumEl) sumEl.textContent = 'Split total: $' + total.toFixed(2);
-  } catch(e){}
-}
-
-/* Wire split actions */
-(function wireSplitActions(){
-  const addBtn = document.getElementById('addSplitRow');
-  if(!addBtn) return;
-  addBtn.addEventListener('click', ()=>{
-    const container = document.getElementById('splitRows');
-    if(!container) return;
-    const row = document.createElement('div');
-    row.className = 'split-row';
-    row.innerHTML = `
-      <input class="split-amount" type="number" step="0.01" min="0" placeholder="Amount" style="width:120px;padding:6px;border-radius:6px;border:1px solid #e6eef6" />
-      <input class="split-date" type="date" style="padding:6px;border-radius:6px;border:1px solid #e6eef6" />
-      <select class="split-method" style="padding:6px;border-radius:6px;border:1px solid #e6eef6">
-        <option>Bank transfer</option><option>Cash</option><option>Card</option><option>Other</option>
-      </select>
-      <select class="split-type" style="padding:6px;border-radius:6px;border:1px solid #e6eef6">
-        <option value="pay">Pay vendor</option><option value="reimburse">Reimburse employee</option>
-      </select>
-      <input class="split-ref" placeholder="Reference" style="padding:6px;border-radius:6px;border:1px solid #e6eef6" />
-      <button class="btn btn-outline split-remove" type="button" style="margin-left:8px">Remove</button>
-    `;
-    container.appendChild(row);
-    const amt = row.querySelector('.split-amount');
-    if(amt) amt.addEventListener('input', updateSplitSummary);
-    const rem = row.querySelector('.split-remove');
-    if(rem) rem.addEventListener('click', ()=> { row.remove(); updateSplitSummary(); });
-    updateSplitSummary();
-  });
-})();
-
-/* Payment modal confirm handler */
-(function wirePaymentModal(){
-  const cancel = document.getElementById('payModalCancel');
-  const confirm = document.getElementById('payModalConfirm');
-  if(cancel) cancel.addEventListener('click', ()=> {
-    const pb = document.getElementById('paymentModalBackdrop');
-    if(pb) { pb.style.display = 'none'; pb.setAttribute('aria-hidden','true'); }
-    _currentSettle = null;
-  });
-  if(confirm) confirm.addEventListener('click', ()=> {
-    if(!_currentSettle) { 
-      const pb = document.getElementById('paymentModalBackdrop');
-      if(pb) { pb.style.display = 'none'; pb.setAttribute('aria-hidden','true'); }
-      return;
-    }
-    const inv = invoices.find(i=>i.id===_currentSettle.id);
-    if(!inv){ alert('Invoice not found'); const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); } _currentSettle=null; return; }
-
-    if(document.getElementById('singleMode').checked){
-      const type = (document.getElementById('payType') || {}).value || 'pay';
-      const amount = parseFloat((document.getElementById('payAmount') || {}).value || 0) || 0;
-      const method = (document.getElementById('payMethod') || {}).value || '';
-      const ref = (document.getElementById('payRef') || {}).value || '';
-      const date = (document.getElementById('payDate') || {}).value || new Date().toISOString().slice(0,10);
-      const rec = { type, amount, method, ref, date };
-      if(type === 'reimburse'){ rec.employeeId = (document.getElementById('payEmployeeId') || {}).value || ''; rec.employeeName = (document.getElementById('payEmployeeName') || {}).value || ''; }
-      inv.paymentRecords = inv.paymentRecords || [];
-      inv.paymentRecords.push(rec);
-      inv.balanceRemaining = Math.max(0, (inv.balanceRemaining || inv.amount || 0) - amount);
-      if(inv.balanceRemaining <= 0) inv.archivedCompleted = true;
-      inv.history = (inv.history || []).concat([`Payment recorded • ${new Date().toLocaleString()} • ${amount.toFixed(2)}`]);
-      renderInbox();
-      alert('Payment recorded (demo).');
-      const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); }
-      _currentSettle = null;
-      return;
-    }
-
-    const rows = Array.from(document.querySelectorAll('#splitRows .split-row'));
-    if(rows.length === 0){ alert('Add at least one split line'); return; }
-    rows.forEach(r=>{
-      const amount = parseFloat((r.querySelector('.split-amount') || {}).value || 0) || 0;
-      const date = (r.querySelector('.split-date') || {}).value || new Date().toISOString().slice(0,10);
-      const method = (r.querySelector('.split-method') || {}).value || '';
-      const type = (r.querySelector('.split-type') || {}).value || 'pay';
-      const ref = (r.querySelector('.split-ref') || {}).value || '';
-      const rec = { type, amount, method, ref, date };
-      inv.paymentRecords = inv.paymentRecords || [];
-      inv.paymentRecords.push(rec);
-      inv.balanceRemaining = Math.max(0, (inv.balanceRemaining || inv.amount || 0) - amount);
-    });
-    if(inv.balanceRemaining <= 0) inv.archivedCompleted = true;
-    inv.history = (inv.history || []).concat([`Split payments recorded • ${new Date().toLocaleString()}`]);
-    renderInbox();
-    alert('Split payments recorded (demo).');
-    const pb = document.getElementById('paymentModalBackdrop'); if(pb){ pb.style.display='none'; pb.setAttribute('aria-hidden','true'); }
-    _currentSettle = null;
-  });
-})();
-
-/* defensive wiring for upload panel close clear */
-try {
-  const clearUpload = document.getElementById('clearUploadList');
-  if(clearUpload) clearUpload.addEventListener('click', ()=> {
-    const list = document.getElementById('uploadList');
-    if(list) list.innerHTML = '<div class="small-muted" style="padding:12px">No recent uploads</div>';
-  });
-} catch(e){}
-
-/* final render to ensure UI ready */
+/* final render */
 try { renderInbox(); } catch(e){ console.warn('final render failed', e); }
-
 </script>
 </body>
 </html>
